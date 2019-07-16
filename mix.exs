@@ -15,11 +15,21 @@ defmodule Membrane.WebRTC.Server do
     ]
   end
 
+  def application do
+    [
+      mod: {Membrane.WebRTC.Server.Application, []},
+      extra_applications: [:logger]
+    ]
+  end
+
   defp deps do
     [
-      {:membrane_core, "~> 0.3.0"},
       {:bunch, "~> 1.0"},
-      {:cowboy, "~> 2.6"}
+      {:cowboy, "~> 2.6"},
+      {:plug, "~> 1.7"},
+      {:plug_cowboy, "~> 2.0"},
+      {:jason, "~> 1.1"},
+      {:membrane_core, "~> 0.3"}
     ]
   end
 end
