@@ -1,10 +1,10 @@
-defmodule Membrane.WebRTC.Server.Router do
+defmodule Example.Router do
   use Plug.Router
   require EEx
 
   plug(Plug.Static,
     at: "/",
-    from: :membrane_webrtc_server
+    from: :example
   )
 
   plug(:match)

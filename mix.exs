@@ -1,4 +1,4 @@
-defmodule Membrane.WebRTC.Server do
+defmodule Membrane.WebRTC.Server.MixProject do
   use Mix.Project
 
   @version "0.1.0"
@@ -8,28 +8,25 @@ defmodule Membrane.WebRTC.Server do
     [
       app: :membrane_webrtc_server,
       version: @version,
-      elixir: "~> 1.7",
+      elixir: "~> 1.9",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
       source_url: @github_url
     ]
   end
 
-  def application do
+  defp deps do
     [
-      mod: {Membrane.WebRTC.Server.Application, []},
-      extra_applications: [:logger]
+      {:cowboy, "~> 2.6"},
+      {:jason, "~> 1.1"},
+      {:membrane_core, "~> 0.3"}
     ]
   end
 
-  defp deps do
+  def application do
     [
-      {:bunch, "~> 1.0"},
-      {:cowboy, "~> 2.6"},
-      {:plug, "~> 1.7"},
-      {:plug_cowboy, "~> 2.0"},
-      {:jason, "~> 1.1"},
-      {:membrane_core, "~> 0.3"}
+      mod: {Membrane.WebRTC.Server, []},
+      extra_applications: []
     ]
   end
 end
