@@ -7,7 +7,7 @@ defmodule Membrane.WebRTC.Server.WebSocket do
     defstruct [:room, :username, :peer_id]
 
     @type t :: %__MODULE__{
-            room: string() | nil,
+            room: String.t() | nil,
             username: string() | nil,
             peer_id: integer()
           }
@@ -41,7 +41,13 @@ defmodule Membrane.WebRTC.Server.WebSocket do
 
   def terminate(_reason, _partial_req, %State{room: room, peer_id: peer_id, username: username}) do
     Logger.debug("Terminating peer #{peer_id}")
-    broadcast_to_room(room, :left, %{peer_id: peer_id, username: username}, peer_id)
+    [{room_pid, room}] = Registry.match(Server.Registry, :room, room)
+
+    {:ok, message} =
+      Jason.encode(%{"event" => :left, "data" => %{"peer_id" => peer_id, "username" => username}})
+
+    GenServer.cast(room_pid, {:remove, peer_id})
+    GenServer.cast(room_pid, {:broadcast, {:text, message}})
     :ok
   end
 
@@ -49,7 +55,7 @@ defmodule Membrane.WebRTC.Server.WebSocket do
          {:ok,
           %{
             "event" => "authenticate",
-            "data" => %{"username" => username, "password" => password, "room" => room}
+            "data" => %{"username" => username, "room" => room}
           }},
          state
        ) do
@@ -62,7 +68,6 @@ defmodule Membrane.WebRTC.Server.WebSocket do
       Map.put(state, :peer_id, peer_id) |> Map.put(:username, username) |> Map.put(:room, room)
 
     {:ok, encoded} = Jason.encode(%{"event" => :authenticated, "data" => %{"peer_id" => peer_id}})
-
     {:reply, {:text, encoded}, state}
   end
 
@@ -73,16 +78,13 @@ defmodule Membrane.WebRTC.Server.WebSocket do
     Logger.debug("Sending message to peer: #{peer_id} from: #{my_peer_id} in room: #{room}")
 
     {:ok, message} = Map.put(message, "from", my_peer_id) |> Jason.encode()
+    [{room_pid, room}] = Registry.match(Server.Registry, :room, room)
 
-    case Registry.match(Registry.Server, room, peer_id) do
-      [{pid, _}] ->
-        send(pid, {:text, message})
-        {:ok, state}
-
-      _ ->
-        Logger.error("Could not find pid")
-        {:ok, state}
+    if GenServer.call(room_pid, {:send, {:text, message}, peer_id}) != :ok do
+      Logger.error("Could not find peer")
     end
+
+    {:ok, state}
   end
 
   defp handle_message({:error, _}, state) do
@@ -92,19 +94,18 @@ defmodule Membrane.WebRTC.Server.WebSocket do
   end
 
   defp join_room(room, username, peer_id) do
-    {:ok, owner} = Registry.register(Registry.Server, room, peer_id)
-    broadcast_to_room(room, :joined, %{peer_id: peer_id, username: username}, peer_id)
-  end
+    if(Registry.match(Server.Registry, :room, room) == []) do
+      children = [Membrane.WebRTC.Server.Room.child_spec(name: room)]
+      opts = [strategy: :one_for_one, name: __MODULE__]
+      {:ok, _} = Supervisor.start_link(children, opts)
+    end
 
-  defp broadcast_to_room(room, event, data, self_peer) do
-    {:ok, encoded} = Jason.encode(%{"event" => event, "data" => data})
+    [{room_pid, room}] = Registry.match(Server.Registry, :room, room)
 
-    Registry.dispatch(Registry.Server, room, fn entries ->
-      Enum.each(entries, fn {pid, peer} ->
-        if peer != self_peer do
-          send(pid, {:text, encoded})
-        end
-      end)
-    end)
+    {:ok, message} =
+      Jason.encode(%{"event" => :joined, "data" => %{peer_id: peer_id, username: username}})
+
+    GenServer.cast(room_pid, {:broadcast, {:text, message}})
+    GenServer.cast(room_pid, {:add, peer_id, self()})
   end
 end

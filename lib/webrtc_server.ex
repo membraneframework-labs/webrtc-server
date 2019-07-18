@@ -6,7 +6,7 @@ defmodule Membrane.WebRTC.Server do
     children = [
       Registry.child_spec(
         keys: :duplicate,
-        name: Registry.Server
+        name: Server.Registry
       )
     ]
 
