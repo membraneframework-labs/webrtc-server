@@ -8,8 +8,8 @@ defmodule Membrane.WebRTC.Server.WebSocket do
 
     @type t :: %__MODULE__{
             room: String.t() | nil,
-            username: string() | nil,
-            peer_id: integer()
+            username: String.t() | nil,
+            peer_id: String.t() | nil
           }
   end
 
@@ -30,7 +30,7 @@ defmodule Membrane.WebRTC.Server.WebSocket do
   def websocket_handle({:text, text}, state),
     do: text |> Jason.decode() |> handle_message(state)
 
-  def websocket_handle(message, state) do
+  def websocket_handle(_, state) do
     Logger.warn("Non-text frame")
     {:ok, state}
   end
@@ -41,7 +41,7 @@ defmodule Membrane.WebRTC.Server.WebSocket do
 
   def terminate(_reason, _partial_req, %State{room: room, peer_id: peer_id, username: username}) do
     Logger.debug("Terminating peer #{peer_id}")
-    [{room_pid, room}] = Registry.match(Server.Registry, :room, room)
+    [{room_pid, ^room}] = Registry.match(Server.Registry, :room, room)
 
     {:ok, message} =
       Jason.encode(%{"event" => :left, "data" => %{"peer_id" => peer_id, "username" => username}})
@@ -59,8 +59,7 @@ defmodule Membrane.WebRTC.Server.WebSocket do
           }},
          state
        ) do
-    peer_id = :rand.uniform(1_000_000)
-
+    "#Reference" <> peer_id = Kernel.inspect(Kernel.make_ref())
     Logger.debug("Registering #{Kernel.inspect(self())} to peer number #{peer_id}")
     join_room(room, username, peer_id)
 
@@ -78,7 +77,7 @@ defmodule Membrane.WebRTC.Server.WebSocket do
     Logger.debug("Sending message to peer: #{peer_id} from: #{my_peer_id} in room: #{room}")
 
     {:ok, message} = Map.put(message, "from", my_peer_id) |> Jason.encode()
-    [{room_pid, room}] = Registry.match(Server.Registry, :room, room)
+    [{room_pid, ^room}] = Registry.match(Server.Registry, :room, room)
 
     if GenServer.call(room_pid, {:send, {:text, message}, peer_id}) != :ok do
       Logger.error("Could not find peer")
@@ -100,7 +99,7 @@ defmodule Membrane.WebRTC.Server.WebSocket do
       {:ok, _} = Supervisor.start_link(children, opts)
     end
 
-    [{room_pid, room}] = Registry.match(Server.Registry, :room, room)
+    [{room_pid, ^room}] = Registry.match(Server.Registry, :room, room)
 
     {:ok, message} =
       Jason.encode(%{"event" => :joined, "data" => %{peer_id: peer_id, username: username}})
