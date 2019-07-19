@@ -43,7 +43,7 @@ defmodule Membrane.WebRTC.Server.Room do
   def handle_cast({:remove, peer}, state) do
     state = Map.put(state, :peers, Map.drop(state.peers, [peer]))
 
-    if state == %{} do
+    if state == %{peers: %{}} do
       {:stop, state}
     else
       {:noreply, state}
@@ -67,7 +67,7 @@ defmodule Membrane.WebRTC.Server.Room do
 
   @impl true
   def terminate(reason, state) do
-    {:ok, message} = Jason.encode(%{"event" => "room_closed", "data" => reason})
+    {:ok, message} = Jason.encode(%{"event" => :room_closed, "data" => reason})
     Enum.each(state.peers, fn {_, pid} -> send(pid, {:text, message}) end)
     :ok
   end

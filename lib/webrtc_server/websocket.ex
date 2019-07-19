@@ -60,8 +60,8 @@ defmodule Membrane.WebRTC.Server.WebSocket do
          state
        ) do
     "#Reference" <> peer_id = Kernel.inspect(Kernel.make_ref())
-    Logger.debug("Registering #{Kernel.inspect(self())} to peer number #{peer_id}")
     join_room(room, username, peer_id)
+    Logger.debug("Registering #{Kernel.inspect(self())} to peer number #{peer_id}")
 
     state =
       Map.put(state, :peer_id, peer_id) |> Map.put(:username, username) |> Map.put(:room, room)
@@ -96,6 +96,7 @@ defmodule Membrane.WebRTC.Server.WebSocket do
     if(Registry.match(Server.Registry, :room, room) == []) do
       children = [Membrane.WebRTC.Server.Room.child_spec(name: room)]
       opts = [strategy: :one_for_one, name: __MODULE__]
+      Logger.debug("Creating room #{room}")
       {:ok, _} = Supervisor.start_link(children, opts)
     end
 
