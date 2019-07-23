@@ -21,13 +21,17 @@ defmodule Membrane.WebRTC.Server.WebSocket do
               | {:cowboy_websocket, :cowboy_req.req(), :cowboy_websocket.opts()}
 
   @callback on_websocket_init(State.t()) ::
-              :ok | {:reply, :cow_ws.frame() | [:cow_ws.frame()]} | :stop
+              :ok
+              | {:ok, :hibernate}
+              | {:reply, :cow_ws.frame() | [:cow_ws.frame()]}
+              | {:reply, :cow_ws.frame() | [:cow_ws.frame()], :hibernate}
+              | :stop
 
   def init(request, %{module: module} = args) do
-    case(apply(module, :authenticate, [request, args])) do
+    case(callback_exec(module, :authenticate, [request, args])) do
       {:ok, room: room} ->
         state = %State{room: room, peer_id: make_peer_id(), module: module}
-        {apply(module, :on_init, [request, state]), state}
+        callback_exec(module, :on_init, [request, state])
 
       {:error, _} ->
         Logger.error("Authentication error")
@@ -38,7 +42,7 @@ defmodule Membrane.WebRTC.Server.WebSocket do
 
   def websocket_init(%State{room: room, peer_id: peer_id} = state) do
     join_room(room, peer_id)
-    {apply(state.module, :on_websocket_init, [state]), state}
+    callback_exec(state.module, :on_websocket_init, [state])
   end
 
   def websocket_handle({:text, "ping"}, state) do
@@ -66,6 +70,26 @@ defmodule Membrane.WebRTC.Server.WebSocket do
     Logger.info("Terminating peer")
     :ok
   end
+
+  defp callback_exec(module, :on_init, [_, state] = args) do
+    case apply(module, :on_init, args) do
+      {:cowboy_websocket, request} -> {:cowboy_websocket, request, state}
+      {:cowboy_websocket, request, opts} -> {:cowboy_websocket, request, state, opts}
+    end
+  end
+
+  defp callback_exec(module, :on_websocket_init, [state]) do
+    case apply(module, :on_websocket_init, [state]) do
+      :ok -> {:ok, state}
+      {:ok, :hibernate} -> {:ok, state, :hibernate}
+      {:reply, frames} -> {:reply, frames, state}
+      {:reply, frames, :hibernate} -> {:reply, frames, state}
+      :stop -> {:stop, state}
+    end
+  end
+
+  defp callback_exec(module, callback, args),
+    do: apply(module, callback, args)
 
   defp handle_message(
          {:ok, %{"to" => peer_id, "data" => _} = message},
@@ -98,7 +122,6 @@ defmodule Membrane.WebRTC.Server.WebSocket do
 
     GenServer.cast(room_pid, {:broadcast, {:text, message}})
     GenServer.cast(room_pid, {:add, peer_id, self()})
-    {}
   end
 
   defp leave_room(room, peer_id) do
@@ -147,6 +170,21 @@ defmodule Membrane.WebRTC.Server.WebSocket do
   defmacro __using__(_) do
     quote location: :keep do
       @behaviour unquote(__MODULE__)
+
+      def authenticate(_, _),
+        do: {:ok, room: "room"}
+
+      def on_init(request, state) do
+        opts = %{idle_timeout: 1000 * 60 * 15}
+        {:cowboy_websocket, request, opts}
+      end
+
+      def on_websocket_init(state),
+        do: :ok
+
+      defoverridable authenticate: 2,
+                     on_init: 2,
+                     on_websocket_init: 1
     end
   end
 end
