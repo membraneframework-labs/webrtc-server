@@ -4,23 +4,41 @@ defmodule Membrane.WebRTC.Server.WebSocket do
   require Jason
 
   defmodule State do
-    defstruct [:room, :username, :peer_id]
+    @enforce_keys [:module, :room, :peer_id]
+    defstruct @enforce_keys
 
     @type t :: %__MODULE__{
-            room: String.t() | nil,
-            username: String.t() | nil,
-            peer_id: String.t() | nil
+            room: String.t(),
+            peer_id: String.t(),
+            module: module()
           }
   end
 
-  def init(request, _state) do
-    state = %State{}
-    opts = %{idle_timeout: 1000 * 60 * 15}
-    {:cowboy_websocket, request, state, opts}
+  @callback authenticate(:cowboy_req.req(), State.t()) :: {:ok, room: String.t()} | {:error, any}
+
+  @callback on_init(:cowboy_req.req(), State.t()) ::
+              {:cowboy_websocket, :cowboy_req.req()}
+              | {:cowboy_websocket, :cowboy_req.req(), :cowboy_websocket.opts()}
+
+  @callback on_websocket_init(State.t()) ::
+              :ok | {:reply, :cow_ws.frame() | [:cow_ws.frame()]} | :stop
+
+  def init(request, %{module: module} = args) do
+    case(apply(module, :authenticate, [request, args])) do
+      {:ok, room: room} ->
+        state = %State{room: room, peer_id: make_peer_id(), module: module}
+        {apply(module, :on_init, [request, state]), state}
+
+      {:error, _} ->
+        Logger.error("Authentication error")
+        request = :cowboy_req.reply(403, request)
+        {:ok, request, %{}}
+    end
   end
 
-  def websocket_init(state) do
-    {:ok, state}
+  def websocket_init(%State{room: room, peer_id: peer_id} = state) do
+    join_room(room, peer_id)
+    {apply(state.module, :on_websocket_init, [state]), state}
   end
 
   def websocket_handle({:text, "ping"}, state) do
@@ -39,50 +57,22 @@ defmodule Membrane.WebRTC.Server.WebSocket do
     {:reply, message, state}
   end
 
-  def terminate(_reason, _partial_req, %State{room: room, peer_id: peer_id, username: username}) do
-    Logger.debug("Terminating peer #{peer_id}")
-    [{room_pid, ^room}] = Registry.match(Server.Registry, :room, room)
-
-    {:ok, message} =
-      Jason.encode(%{"event" => :left, "data" => %{"peer_id" => peer_id, "username" => username}})
-
-    GenServer.cast(room_pid, {:remove, peer_id})
-    GenServer.cast(room_pid, {:broadcast, {:text, message}})
-    :ok
+  def terminate(_, _, %State{room: room, peer_id: peer_id}) do
+    Logger.info("Terminating peer #{peer_id}")
+    leave_room(room, peer_id)
   end
 
-  defp handle_message(
-         {:ok,
-          %{
-            "event" => "authenticate",
-            "data" => %{"username" => username, "room" => room}
-          }},
-         state
-       ) do
-    "#Reference" <> peer_id = Kernel.inspect(Kernel.make_ref())
-    join_room(room, username, peer_id)
-    Logger.debug("Registering #{Kernel.inspect(self())} to peer number #{peer_id}")
-
-    state =
-      Map.put(state, :peer_id, peer_id) |> Map.put(:username, username) |> Map.put(:room, room)
-
-    {:ok, encoded} = Jason.encode(%{"event" => :authenticated, "data" => %{"peer_id" => peer_id}})
-    {:reply, {:text, encoded}, state}
+  def terminate(_, _, _) do
+    Logger.info("Terminating peer")
+    :ok
   end
 
   defp handle_message(
          {:ok, %{"to" => peer_id, "data" => _} = message},
          %State{peer_id: my_peer_id, room: room} = state
        ) do
-    Logger.debug("Sending message to peer: #{peer_id} from: #{my_peer_id} in room: #{room}")
-
-    {:ok, message} = Map.put(message, "from", my_peer_id) |> Jason.encode()
-    [{room_pid, ^room}] = Registry.match(Server.Registry, :room, room)
-
-    if GenServer.call(room_pid, {:send, {:text, message}, peer_id}) != :ok do
-      Logger.error("Could not find peer")
-    end
-
+    Logger.info("Sending message to peer #{peer_id} from #{my_peer_id} in room #{room}")
+    send_message(my_peer_id, peer_id, message, room)
     {:ok, state}
   end
 
@@ -92,20 +82,71 @@ defmodule Membrane.WebRTC.Server.WebSocket do
     {:reply, {:text, encoded}, state}
   end
 
-  defp join_room(room, username, peer_id) do
+  defp make_peer_id() do
+    "#Reference" <> peer_id = Kernel.inspect(Kernel.make_ref())
+    peer_id
+  end
+
+  defp join_room(room, peer_id) do
     if(Registry.match(Server.Registry, :room, room) == []) do
-      children = [Membrane.WebRTC.Server.Room.child_spec(name: room)]
-      opts = [strategy: :one_for_one, name: __MODULE__]
-      Logger.debug("Creating room #{room}")
-      {:ok, _} = Supervisor.start_link(children, opts)
+      {:ok, _} = create_room(room)
     end
 
     [{room_pid, ^room}] = Registry.match(Server.Registry, :room, room)
 
-    {:ok, message} =
-      Jason.encode(%{"event" => :joined, "data" => %{peer_id: peer_id, username: username}})
+    {:ok, message} = Jason.encode(%{"event" => :joined, "data" => %{peer_id: peer_id}})
 
     GenServer.cast(room_pid, {:broadcast, {:text, message}})
     GenServer.cast(room_pid, {:add, peer_id, self()})
+    {}
+  end
+
+  defp leave_room(room, peer_id) do
+    case Registry.match(Server.Registry, :room, room) do
+      [{room_pid, ^room}] ->
+        {:ok, message} =
+          Jason.encode(%{
+            "event" => :left,
+            "data" => %{"peer_id" => peer_id}
+          })
+
+        GenServer.cast(room_pid, {:remove, peer_id})
+        GenServer.cast(room_pid, {:broadcast, {:text, message}})
+        :ok
+
+      [] ->
+        Logger.error("Couldn't find room #{room}")
+        {:error, %{}}
+    end
+  end
+
+  defp create_room(room) do
+    child_spec = {Membrane.WebRTC.Server.Room, %{name: room}}
+    Logger.info("Creating room #{room}")
+    DynamicSupervisor.start_child(Membrane.WebRTC.Server, child_spec)
+  end
+
+  defp send_message(from, to, message, room) do
+    {:ok, message} = Map.put(message, "from", from) |> Jason.encode()
+    [{room_pid, ^room}] = Registry.match(Server.Registry, :room, room)
+
+    case GenServer.call(room_pid, {:send, {:text, message}, to}) do
+      :ok ->
+        :ok
+
+      {:error, "no such peer"} ->
+        Logger.error("Could not find peer")
+        {:error, "no such peer"}
+
+      _ ->
+        Logger.error("Unknown error")
+        {:error, :unknown}
+    end
+  end
+
+  defmacro __using__(_) do
+    quote location: :keep do
+      @behaviour unquote(__MODULE__)
+    end
   end
 end
