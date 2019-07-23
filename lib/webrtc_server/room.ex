@@ -44,7 +44,7 @@ defmodule Membrane.WebRTC.Server.Room do
     state = Map.put(state, :peers, Map.drop(state.peers, [peer]))
 
     if state == %State{peers: %{}} do
-      {:stop, state}
+      {:stop, :normal, state}
     else
       {:noreply, state}
     end
@@ -66,8 +66,11 @@ defmodule Membrane.WebRTC.Server.Room do
   end
 
   @impl true
+  def terminate(_, %State{peers: peers}) when map_size(peers) == 0,
+    do: :ok
+
   def terminate(reason, state) do
-    {:ok, message} = Jason.encode(%{"event" => :room_closed, "data" => reason})
+    {:ok, message} = Jason.encode(%{"event" => :room_closed})
     Enum.each(state.peers, fn {_, pid} -> send(pid, {:text, message}) end)
     :ok
   end
