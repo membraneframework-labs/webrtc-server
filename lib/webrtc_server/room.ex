@@ -12,11 +12,11 @@ defmodule Membrane.WebRTC.Server.Room do
   end
 
   def start_link(args) do
-    GenServer.start_link(__MODULE__, args, name: __MODULE__)
+    GenServer.start_link(__MODULE__, args)
   end
 
   @impl true
-  def init(name: name) do
+  def init(%{name: name}) do
     Registry.register(Server.Registry, :room, name)
     state = %State{peers: %{}}
     {:ok, state}
@@ -43,7 +43,7 @@ defmodule Membrane.WebRTC.Server.Room do
   def handle_cast({:remove, peer}, state) do
     state = Map.put(state, :peers, Map.drop(state.peers, [peer]))
 
-    if state == %{peers: %{}} do
+    if state == %State{peers: %{}} do
       {:stop, state}
     else
       {:noreply, state}
