@@ -15,7 +15,6 @@ defmodule Example.Application do
           otp_app: :example,
           keyfile: "priv/certs/key.pem",
           certfile: "priv/certs/certificate.pem"
-          # dhfile: "priv/certs/ssl/dhparam.pem"
         ]
       )
     ]
@@ -32,7 +31,7 @@ defmodule Example.Application do
     [
       {:_,
        [
-         {"/websocket/[...]", Membrane.WebRTC.Server.WebSocket, []},
+         {"/websocket/:room/", Membrane.WebRTC.Server.WebSocket, %{module: Example.WebSocket}},
          {:_, Plug.Cowboy.Handler, {Example.Router, []}}
        ]}
     ]
