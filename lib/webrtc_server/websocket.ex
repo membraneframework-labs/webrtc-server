@@ -45,12 +45,18 @@ defmodule Membrane.WebRTC.Server.WebSocket do
     callback_exec(state.module, :on_websocket_init, [state])
   end
 
+  def websocket_handle({:text, text}, state),
+    do: text |> Jason.decode() |> handle_message(state)
+
   def websocket_handle({:text, "ping"}, state) do
     {:reply, {:text, "pong"}, state}
   end
 
-  def websocket_handle({:text, text}, state),
-    do: text |> Jason.decode() |> handle_message(state)
+  def websocket_handle(:ping, state),
+    do: {:reply, :pong, state}
+
+  def websocket_handle({:ping, data}, state),
+    do: {:reply, {:pong, data}, state}
 
   def websocket_handle(_, state) do
     Logger.warn("Non-text frame")
