@@ -62,6 +62,7 @@ dkms.conf
 /cover
 /deps
 /example/deps
+/example/priv
 /doc
 /.fetch
 erl_crash.dump
