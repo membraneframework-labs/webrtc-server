@@ -10,7 +10,7 @@ defmodule Membrane.WebRTC.Server.WebSocket do
     @type t :: %__MODULE__{
             room: String.t(),
             peer_id: String.t(),
-            module: module()
+            module: module() | nil
           }
   end
 
