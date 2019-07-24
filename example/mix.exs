@@ -20,7 +20,6 @@ defmodule Example do
 
   defp deps do
     [
-      {:membrane_core, "~> 0.3"},
       {:membrane_webrtc_server, path: "../"},
       {:plug, "~> 1.7"},
       {:plug_cowboy, "~> 2.0"}
