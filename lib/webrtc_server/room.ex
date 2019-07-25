@@ -35,7 +35,7 @@ defmodule Membrane.WebRTC.Server.Room do
   end
 
   @impl true
-  def handle_cast({:add, peer, pid}, state) do
+  def handle_cast({:add, peer, pid}, state) when is_pid(pid) do
     state = Map.put(state, :peers, Map.put(state.peers, peer, pid))
     {:noreply, state}
   end
