@@ -45,9 +45,6 @@ defmodule Membrane.WebRTC.Server.WebSocket do
     callback_exec(state.module, :on_websocket_init, [state])
   end
 
-  def websocket_handle({:text, text}, state),
-    do: text |> Jason.decode() |> handle_message(state)
-
   def websocket_handle({:text, "ping"}, state) do
     {:reply, {:text, "pong"}, state}
   end
@@ -58,13 +55,16 @@ defmodule Membrane.WebRTC.Server.WebSocket do
   def websocket_handle({:ping, data}, state),
     do: {:reply, {:pong, data}, state}
 
+  def websocket_handle({:text, text}, state),
+    do: text |> Jason.decode() |> handle_message(state)
+
   def websocket_handle(_, state) do
     Logger.warn("Non-text frame")
     {:ok, state}
   end
 
-  def websocket_info(message, state) do
-    {:reply, message, state}
+  def websocket_info(_, state) do
+    {:reply, {:text, "ok"}, state}
   end
 
   def terminate(_, _, %State{room: room, peer_id: peer_id}) do
@@ -107,7 +107,7 @@ defmodule Membrane.WebRTC.Server.WebSocket do
   end
 
   defp handle_message({:error, _}, state) do
-    Logger.error("Wrong message")
+    Logger.warn("Wrong message")
     {:ok, encoded} = Jason.encode(%{"event" => :error, "description" => "invalid json"})
     {:reply, {:text, encoded}, state}
   end
