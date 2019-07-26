@@ -36,9 +36,8 @@ defmodule Membrane.WebRTC.Server.WebSocketTest do
   end
 
   describe "handle info" do
-    test "should reply with ok", ctx do
-      assert @module.websocket_info("info message", ctx[:state]) ==
-               {:reply, {:text, "ok"}, ctx[:state]}
+    test "should reply with same message", ctx do
+      assert @module.websocket_info("ok", ctx[:state]) == {:reply, "ok", ctx[:state]}
     end
   end
 end

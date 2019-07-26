@@ -63,8 +63,8 @@ defmodule Membrane.WebRTC.Server.WebSocket do
     {:ok, state}
   end
 
-  def websocket_info(_, state) do
-    {:reply, {:text, "ok"}, state}
+  def websocket_info(message, state) do
+    {:reply, message, state}
   end
 
   def terminate(_, _, %State{room: room, peer_id: peer_id}) do

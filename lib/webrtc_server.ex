@@ -10,5 +10,13 @@ defmodule Membrane.WebRTC.Server do
   end
 
   def init(_),
-    do: {:ok, %{strategy: :one_for_one}}
+    do:
+      {:ok,
+       %{
+         strategy: :one_for_one,
+         intensity: 3,
+         max_children: :infinity,
+         period: 5,
+         extra_arguments: []
+       }}
 end
