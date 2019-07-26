@@ -97,7 +97,7 @@ defmodule Membrane.WebRTC.Server.RoomTest do
     end
   end
 
-  defp state(number_of_peers, map \\ %{}, real \\ false) do
+  def state(number_of_peers, map \\ %{}, real \\ false) do
     case number_of_peers do
       0 ->
         %State{peers: map}
@@ -112,7 +112,7 @@ defmodule Membrane.WebRTC.Server.RoomTest do
     end
   end
 
-  defp generate_pid(number, real) do
+  def generate_pid(number, real) do
     case real do
       true ->
         task = Task.async(fn -> :ok end)
