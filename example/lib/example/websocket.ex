@@ -1,5 +1,5 @@
-defmodule Example.WebSocket do
-  use Membrane.WebRTC.Server.WebSocket
+defmodule Example.Peer do
+  use Membrane.WebRTC.Server.Peer
 
   @impl true
   def authenticate(request, _args) do

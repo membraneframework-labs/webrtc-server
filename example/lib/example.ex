@@ -31,7 +31,7 @@ defmodule Example.Application do
     [
       {:_,
        [
-         {"/websocket/:room/", Membrane.WebRTC.Server.WebSocket, %{module: Example.WebSocket}},
+         {"/websocket/:room/", Membrane.WebRTC.Server.Peer, %{module: Example.Peer}},
          {:_, Plug.Cowboy.Handler, {Example.Router, []}}
        ]}
     ]
