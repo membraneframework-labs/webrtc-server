@@ -1,4 +1,4 @@
-defmodule Membrane.WebRTC.Server.WebSocket do
+defmodule Membrane.WebRTC.Server.Peer do
   @behaviour :cowboy_websocket
   require Logger
   require Jason

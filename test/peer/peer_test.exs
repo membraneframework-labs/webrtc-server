@@ -1,6 +1,6 @@
-defmodule Membrane.WebRTC.Server.WebSocketTest do
-  @module Membrane.WebRTC.Server.WebSocket
-  alias Membrane.WebRTC.Server.WebSocket.State
+defmodule Membrane.WebRTC.Server.PeerTest do
+  @module Membrane.WebRTC.Server.Peer
+  alias Membrane.WebRTC.Server.Peer.State
   use ExUnit.Case, async: true
 
   setup_all do
