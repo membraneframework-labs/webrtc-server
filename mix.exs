@@ -19,7 +19,6 @@ defmodule Membrane.WebRTC.Server.MixProject do
     [
       {:cowboy, "~> 2.6"},
       {:jason, "~> 1.1"},
-      {:membrane_core, "~> 0.3", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 0.5", only: [:dev], runtime: false}
     ]
   end

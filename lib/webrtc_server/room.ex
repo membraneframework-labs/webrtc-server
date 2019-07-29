@@ -1,6 +1,5 @@
 defmodule Membrane.WebRTC.Server.Room do
   use GenServer
-  require Jason
 
   defmodule State do
     @enforce_keys [:peers]

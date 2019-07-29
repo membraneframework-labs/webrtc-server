@@ -1,7 +1,6 @@
 defmodule Membrane.WebRTC.Server.Peer do
   @behaviour :cowboy_websocket
   require Logger
-  require Jason
 
   defmodule State do
     @enforce_keys [:module, :room, :peer_id]
