@@ -27,6 +27,7 @@ defmodule Membrane.WebRTC.Server.WebSocket do
               | {:reply, :cow_ws.frame() | [:cow_ws.frame()], :hibernate}
               | :stop
 
+  @impl true
   def init(request, %{module: module} = args) do
     case(callback_exec(module, :authenticate, [request, args])) do
       {:ok, room: room} ->
@@ -40,38 +41,47 @@ defmodule Membrane.WebRTC.Server.WebSocket do
     end
   end
 
+  @impl true
   def websocket_init(%State{room: room, peer_id: peer_id} = state) do
     join_room(room, peer_id)
     callback_exec(state.module, :on_websocket_init, [state])
   end
 
+  @impl true
   def websocket_handle({:text, "ping"}, state) do
     {:reply, {:text, "pong"}, state}
   end
 
+  @impl true
   def websocket_handle(:ping, state),
     do: {:reply, :pong, state}
 
+  @impl true
   def websocket_handle({:ping, data}, state),
     do: {:reply, {:pong, data}, state}
 
+  @impl true
   def websocket_handle({:text, text}, state),
     do: text |> Jason.decode() |> handle_message(state)
 
+  @impl true
   def websocket_handle(_, state) do
     Logger.warn("Non-text frame")
     {:ok, state}
   end
 
+  @impl true
   def websocket_info(message, state) do
     {:reply, message, state}
   end
 
+  @impl true
   def terminate(_, _, %State{room: room, peer_id: peer_id}) do
     Logger.info("Terminating peer #{peer_id}")
     leave_room(room, peer_id)
   end
 
+  @impl true
   def terminate(_, _, _) do
     Logger.info("Terminating peer")
     :ok
