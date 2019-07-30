@@ -9,7 +9,7 @@ defmodule Membrane.WebRTC.Server.PeerTest do
   end
 
   setup do
-    [state: %State{room: "room", peer_id: "1", module: nil}]
+    [state: %State{room: "room", peer_id: "1", module: nil, internal_state: %{}}]
   end
 
   describe "handle frame" do

@@ -22,7 +22,8 @@ defmodule Membrane.WebRTC.Server.IntegrationTest do
       peer_state: %State{
         room: "room",
         peer_id: "peer_10",
-        module: MockSocket
+        module: MockSocket,
+        internal_state: %{}
       },
       room_pid: pid
     ]

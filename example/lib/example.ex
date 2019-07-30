@@ -1,6 +1,7 @@
 defmodule Example.Application do
   @moduledoc false
   use Application
+  alias Membrane.WebRTC.Server.Peer.Spec
 
   def start(_type, _args) do
     children = [
@@ -28,10 +29,12 @@ defmodule Example.Application do
   end
 
   defp dispatch do
+    spec = %Spec{module: Example.Peer, custom_spec: %{}}
+
     [
       {:_,
        [
-         {"/websocket/:room/", Membrane.WebRTC.Server.Peer, %{module: Example.Peer}},
+         {"/websocket/:room/", Membrane.WebRTC.Server.Peer, spec},
          {:_, Plug.Cowboy.Handler, {Example.Router, []}}
        ]}
     ]
