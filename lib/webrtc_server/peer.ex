@@ -39,7 +39,7 @@ defmodule Membrane.WebRTC.Server.Peer do
   @callback authenticate(request :: :cowboy_req.req(), spec :: any) ::
               {:ok, %{room: String.t(), state: internal_state}}
               | {:ok, %{room: String.t()}}
-              | {:error, any}
+              | {:error, reason :: any}
 
   @callback on_init(
               request :: :cowboy_req.req(),
@@ -69,8 +69,8 @@ defmodule Membrane.WebRTC.Server.Peer do
 
         callback_exec(module, :on_init, [request], state)
 
-      {:error, _} ->
-        Logger.error("Authentication error")
+      {:error, reason} ->
+        Logger.error("Authentication error, reason: #{inspect(reason)}")
         request = :cowboy_req.reply(403, request)
         {:ok, request, %{}}
     end
@@ -100,7 +100,7 @@ defmodule Membrane.WebRTC.Server.Peer do
     do: text |> Jason.decode() |> handle_message(state)
 
   @impl true
-  def websocket_handle(_, state) do
+  def websocket_handle(_frame, state) do
     Logger.warn("Non-text frame")
     {:ok, state}
   end
@@ -111,13 +111,13 @@ defmodule Membrane.WebRTC.Server.Peer do
   end
 
   @impl true
-  def terminate(_, _, %State{room: room, peer_id: peer_id}) do
+  def terminate(_reason, _req, %State{room: room, peer_id: peer_id}) do
     Logger.info("Terminating peer #{peer_id}")
     leave_room(room, peer_id)
   end
 
   @impl true
-  def terminate(_, _, _) do
+  def terminate(_reason, _req, _state) do
     Logger.info("Terminating peer")
     :ok
   end
@@ -163,7 +163,7 @@ defmodule Membrane.WebRTC.Server.Peer do
   end
 
   defp handle_message(
-         {:ok, %{"to" => peer_id, "data" => _} = message},
+         {:ok, %{"to" => peer_id, "data" => _data} = message},
          %State{peer_id: my_peer_id, room: room} = state
        ) do
     Logger.info("Sending message to peer #{peer_id} from #{my_peer_id} in room #{room}")
@@ -171,7 +171,7 @@ defmodule Membrane.WebRTC.Server.Peer do
     {:ok, state}
   end
 
-  defp handle_message({:error, _}, state) do
+  defp handle_message({:error, _jason_error}, state) do
     Logger.warn("Wrong message")
     {:ok, encoded} = Jason.encode(%{"event" => :error, "description" => "invalid json"})
     {:reply, {:text, encoded}, state}
@@ -184,7 +184,7 @@ defmodule Membrane.WebRTC.Server.Peer do
 
   defp join_room(room, peer_id) do
     if(Registry.match(Server.Registry, :room, room) == []) do
-      {:ok, _} = create_room(room)
+      {:ok, _pid} = create_room(room)
     end
 
     [{room_pid, ^room}] = Registry.match(Server.Registry, :room, room)
@@ -228,9 +228,9 @@ defmodule Membrane.WebRTC.Server.Peer do
       :ok ->
         :ok
 
-      {:error, "no such peer"} ->
+      {:error, :no_such_peer} ->
         Logger.error("Could not find peer")
-        {:error, "no such peer"}
+        {:error, :no_such_peer}
 
       _ ->
         Logger.error("Unknown error")

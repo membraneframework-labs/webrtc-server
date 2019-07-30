@@ -22,14 +22,14 @@ defmodule Membrane.WebRTC.Server.Room do
   end
 
   @impl true
-  def handle_call({:send, message, peer}, _, state) do
+  def handle_call({:send, message, peer}, _from, state) do
     pid = state.peers[peer]
 
     if pid != nil do
       send(pid, message)
       {:reply, :ok, state}
     else
-      {:reply, {:error, "no such peer"}, state}
+      {:reply, {:error, :no_such_peer}, state}
     end
   end
 
@@ -52,7 +52,7 @@ defmodule Membrane.WebRTC.Server.Room do
 
   @impl true
   def handle_cast({:broadcast, message}, state) do
-    Enum.each(state.peers, fn {_, pid} -> send(pid, message) end)
+    Enum.each(state.peers, fn {_peer, pid} -> send(pid, message) end)
     {:noreply, state}
   end
 
@@ -68,7 +68,7 @@ defmodule Membrane.WebRTC.Server.Room do
   end
 
   @impl true
-  def terminate(_, %State{peers: peers}) when map_size(peers) == 0,
+  def terminate(_reason, %State{peers: peers}) when map_size(peers) == 0,
     do: :ok
 
   @impl true
