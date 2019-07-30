@@ -4,59 +4,58 @@ defmodule Membrane.WebRTC.Server.RoomTest do
 
   use ExUnit.Case, async: false
 
-  describe "handle_cast:" do
+  describe "handle_info:" do
     test "should remove peer" do
-      assert @module.handle_cast({:remove, "peer_2"}, state(2)) == {:noreply, state(1)}
+      assert @module.handle_info({:leave, "peer_2"}, state(2)) == {:noreply, state(1)}
     end
 
     test "should remove no peer" do
-      assert @module.handle_cast({:remove, "peer_3"}, state(2)) == {:noreply, state(2)}
+      assert @module.handle_info({:leave, "peer_3"}, state(2)) == {:noreply, state(2)}
     end
 
     test "remove last peer from room and close room" do
-      assert @module.handle_cast({:remove, "peer_1"}, state(1)) == {:stop, :normal, state(0)}
+      assert @module.handle_info({:leave, "peer_1"}, state(1)) == {:stop, :normal, state(0)}
     end
 
     test "should add peer to room" do
-      assert @module.handle_cast({:add, "peer_2", IEx.Helpers.pid("0.2.0")}, state(1)) ==
+      assert @module.handle_info({:join, "peer_2", IEx.Helpers.pid("0.2.0")}, state(1)) ==
                {:noreply, state(2)}
     end
 
     test "should add peer to room with many peers" do
-      assert @module.handle_cast({:add, "peer_150", IEx.Helpers.pid("0.150.0")}, state(149)) ==
+      assert @module.handle_info({:join, "peer_150", IEx.Helpers.pid("0.150.0")}, state(149)) ==
                {:noreply, state(150)}
     end
 
     test "should add peer to empty room" do
-      # state_1 = state(1)
-      assert @module.handle_cast({:add, "peer_1", self()}, state(0)) == {:noreply, state(1)}
+      assert @module.handle_info({:join, "peer_1", self()}, state(0)) == {:noreply, state(1)}
     end
 
     test "should raise when given pid isn't a pid" do
       assert_raise FunctionClauseError,
-                   ~r/no function clause matching in Membrane.WebRTC.Server.Room.handle_cast\/2/,
-                   fn -> @module.handle_cast({:add, "peer_10", :not_a_pid}, state(4)) end
+                   ~r/no function clause matching in Membrane.WebRTC.Server.Room.handle_info\/2/,
+                   fn -> @module.handle_info({:join, "peer_10", :not_a_pid}, state(4)) end
     end
 
     test "should replace already existing peer" do
       pid = generate_pid(5, true)
 
-      assert @module.handle_cast({:add, "peer_1", pid}, state(1)) ==
+      assert @module.handle_info({:join, "peer_1", pid}, state(1)) ==
                {:noreply, %State{peers: %{"peer_1" => pid}}}
     end
 
     test "should receive broadcasted message" do
-      @module.handle_cast({:broadcast, :ping}, state(10, %{}, true))
+      @module.handle_info({:broadcast, :ping}, state(10, %{}, true))
       assert_received :ping
     end
 
     test "shouldn't receive broadcasted message when broadcaster is given" do
-      @module.handle_cast({:broadcast, :ping, "peer_1"}, state(10, %{}, true))
+      @module.handle_info({:broadcast, :ping, "peer_1"}, state(10, %{}, true))
       refute_received :ping
     end
 
     test "shouldn't change state nor send messages when broadcasting to empty room" do
-      assert @module.handle_cast({:broadcast, :ping}, state(0)) == {:noreply, state(0)}
+      assert @module.handle_info({:broadcast, :ping}, state(0)) == {:noreply, state(0)}
       refute_received :ping
     end
   end

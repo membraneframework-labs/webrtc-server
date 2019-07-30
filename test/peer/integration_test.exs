@@ -65,12 +65,12 @@ defmodule Membrane.WebRTC.Server.IntegrationTest do
         :ok
 
       1 ->
-        GenServer.cast(room, {:add, "peer_1", self()})
+        Room.join(room, "peer_1", self())
 
       n ->
         peer = "peer_" <> to_string(n)
         pid = RoomTest.generate_pid(n, real)
-        GenServer.cast(room, {:add, peer, pid})
+        Room.join(room, peer, pid)
         insert_peers(n - 1, room, real)
     end
   end
