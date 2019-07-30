@@ -1,6 +1,7 @@
 defmodule Membrane.WebRTC.Server.Peer do
   @behaviour :cowboy_websocket
   require Logger
+  alias Membrane.WebRTC.Server.Room
 
   @type internal_state :: any
 
@@ -78,7 +79,7 @@ defmodule Membrane.WebRTC.Server.Peer do
 
   @impl true
   def websocket_init(%State{room: room, peer_id: peer_id} = state) do
-    join_room(room, peer_id)
+    Room.join(get_room_pid(room), peer_id, self())
     callback_exec(state.module, :on_websocket_init, [], state)
   end
 
@@ -113,7 +114,9 @@ defmodule Membrane.WebRTC.Server.Peer do
   @impl true
   def terminate(_reason, _req, %State{room: room, peer_id: peer_id}) do
     Logger.info("Terminating peer #{peer_id}")
-    leave_room(room, peer_id)
+    room_pid = get_room_pid(room)
+    Room.leave(room_pid, peer_id)
+    :ok
   end
 
   @impl true
@@ -148,7 +151,7 @@ defmodule Membrane.WebRTC.Server.Peer do
         {:reply, frames, %State{state | internal_state: internal_state}}
 
       {:reply, frames, internal_state, :hibernate} ->
-        {:reply, frames, %State{state | internal_state: internal_state}}
+        {:reply, frames, %State{state | internal_state: internal_state}, :hibernate}
 
       {:stop, internal_state} ->
         {:stop, %State{state | internal_state: internal_state}}
@@ -166,8 +169,9 @@ defmodule Membrane.WebRTC.Server.Peer do
          {:ok, %{"to" => peer_id, "data" => _data} = message},
          %State{peer_id: my_peer_id, room: room} = state
        ) do
+    room_pid = get_room_pid(room)
     Logger.info("Sending message to peer #{peer_id} from #{my_peer_id} in room #{room}")
-    send_message(my_peer_id, peer_id, message, room)
+    Room.send_message(room_pid, message, peer_id, my_peer_id)
     {:ok, state}
   end
 
@@ -182,59 +186,14 @@ defmodule Membrane.WebRTC.Server.Peer do
     peer_id
   end
 
-  defp join_room(room, peer_id) do
-    if(Registry.match(Server.Registry, :room, room) == []) do
-      {:ok, _pid} = create_room(room)
-    end
-
-    [{room_pid, ^room}] = Registry.match(Server.Registry, :room, room)
-
-    {:ok, message} = Jason.encode(%{"event" => :joined, "data" => %{peer_id: peer_id}})
-
-    GenServer.cast(room_pid, {:broadcast, {:text, message}})
-    GenServer.cast(room_pid, {:add, peer_id, self()})
-  end
-
-  defp leave_room(room, peer_id) do
+  defp get_room_pid(room) do
     case Registry.match(Server.Registry, :room, room) do
       [{room_pid, ^room}] ->
-        {:ok, message} =
-          Jason.encode(%{
-            "event" => :left,
-            "data" => %{"peer_id" => peer_id}
-          })
-
-        GenServer.cast(room_pid, {:remove, peer_id})
-        GenServer.cast(room_pid, {:broadcast, {:text, message}})
-        :ok
+        room_pid
 
       [] ->
-        Logger.error("Couldn't find room #{room}")
-        {:error, %{}}
-    end
-  end
-
-  defp create_room(room) do
-    child_spec = {Membrane.WebRTC.Server.Room, %{name: room}}
-    Logger.info("Creating room #{room}")
-    DynamicSupervisor.start_child(Membrane.WebRTC.Server, child_spec)
-  end
-
-  defp send_message(from, to, message, room) do
-    {:ok, message} = Map.put(message, "from", from) |> Jason.encode()
-    [{room_pid, ^room}] = Registry.match(Server.Registry, :room, room)
-
-    case GenServer.call(room_pid, {:send, {:text, message}, to}) do
-      :ok ->
-        :ok
-
-      {:error, :no_such_peer} ->
-        Logger.error("Could not find peer")
-        {:error, :no_such_peer}
-
-      _ ->
-        Logger.error("Unknown error")
-        {:error, :unknown}
+        {:ok, room_pid} = Room.create(room)
+        room_pid
     end
   end
 
