@@ -82,7 +82,7 @@ defmodule Membrane.WebRTC.Server.Room do
   def create(room_name) do
     child_spec = {Membrane.WebRTC.Server.Room, %{name: room_name}}
     Logger.info("Creating room #{room_name}")
-    DynamicSupervisor.start_child(Membrane.WebRTC.Server, child_spec)
+    DynamicSupervisor.start_child(Server.RoomSupervisor, child_spec)
   end
 
   def join(pid, peer_id, peer_pid) do
