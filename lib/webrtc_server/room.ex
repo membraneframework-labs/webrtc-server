@@ -105,8 +105,8 @@ defmodule Membrane.WebRTC.Server.Room do
   def broadcast(pid, message),
     do: send(pid, {:broadcast, message})
 
-  def send_message(pid, message, to, from) do
-    {:ok, message} = Map.put(message, "from", from) |> Jason.encode()
+  def send_message(pid, message, to) do
+    {:ok, message} = message |> Jason.encode()
 
     case GenServer.call(pid, {:send, {:text, message}, to}) do
       :ok ->

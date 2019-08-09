@@ -57,6 +57,10 @@ defmodule Membrane.WebRTC.Server.Peer do
               | {:reply, :cow_ws.frame() | [:cow_ws.frame()], internal_state, :hibernate}
               | {:stop, internal_state}
 
+  @callback on_message(message :: map, context :: Context.t(), state :: internal_state) ::
+              {:ok, map, internal_state}
+              | {:ok, internal_state}
+
   @impl true
   def init(request, %Spec{module: module} = spec) do
     case(callback_exec(module, :authenticate, [request], spec)) do
@@ -165,14 +169,23 @@ defmodule Membrane.WebRTC.Server.Peer do
     end
   end
 
-  defp handle_message(
-         {:ok, %{"to" => peer_id, "data" => _data} = message},
-         %State{peer_id: my_peer_id, room: room} = state
-       ) do
-    room_pid = get_room_pid(room)
-    Logger.info("Sending message to peer #{peer_id} from #{my_peer_id} in room #{room}")
-    Room.send_message(room_pid, message, peer_id, my_peer_id)
-    {:ok, state}
+  defp callback_exec(module, :on_message, [message], state) do
+    args = [message, %Context{room: state.room, peer_id: state.peer_id}, state.internal_state]
+
+    case apply(module, :on_message, args) do
+      {:ok, internal_state} ->
+        {:ok, %State{state | internal_state: internal_state}}
+
+      {:ok, %{"to" => peer_id, "data" => _data} = message, internal_state} ->
+        room_pid = get_room_pid(state.room)
+        Room.send_message(room_pid, message, peer_id)
+        {:ok, %State{state | internal_state: internal_state}}
+    end
+  end
+
+  defp handle_message({:ok, message}, %State{module: module, peer_id: peer_id} = state) do
+    message = Map.put(message, "from", peer_id)
+    callback_exec(module, :on_message, [message], state)
   end
 
   defp handle_message({:error, _jason_error}, state) do
@@ -212,9 +225,13 @@ defmodule Membrane.WebRTC.Server.Peer do
       def on_websocket_init(_context, state),
         do: {:ok, state}
 
+      def on_message(message, _context, state),
+        do: {:ok, message, state}
+
       defoverridable authenticate: 2,
                      on_init: 3,
-                     on_websocket_init: 2
+                     on_websocket_init: 2,
+                     on_message: 3
     end
   end
 end
