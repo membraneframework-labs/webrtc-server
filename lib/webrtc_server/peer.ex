@@ -1,7 +1,7 @@
 defmodule Membrane.WebRTC.Server.Peer do
   @behaviour :cowboy_websocket
   require Logger
-  alias Membrane.WebRTC.Server.Room
+  alias Membrane.WebRTC.Server.{Message, Room}
 
   @type internal_state :: any
 
@@ -57,8 +57,8 @@ defmodule Membrane.WebRTC.Server.Peer do
               | {:reply, :cow_ws.frame() | [:cow_ws.frame()], internal_state, :hibernate}
               | {:stop, internal_state}
 
-  @callback on_message(message :: map, context :: Context.t(), state :: internal_state) ::
-              {:ok, map, internal_state}
+  @callback on_message(message :: Message.t(), context :: Context.t(), state :: internal_state) ::
+              {:ok, Message.t(), internal_state}
               | {:ok, internal_state}
 
   @impl true
@@ -111,8 +111,11 @@ defmodule Membrane.WebRTC.Server.Peer do
   end
 
   @impl true
+  @spec websocket_info(message :: Message.t(), state :: State.t()) ::
+          {:reply, String.t(), State.t()}
   def websocket_info(message, state) do
-    {:reply, message, state}
+    {:ok, encoded} = message |> Map.from_struct() |> Jason.encode()
+    {:reply, {:text, encoded}, state}
   end
 
   @impl true
@@ -176,22 +179,35 @@ defmodule Membrane.WebRTC.Server.Peer do
       {:ok, internal_state} ->
         {:ok, %State{state | internal_state: internal_state}}
 
-      {:ok, %{"to" => peer_id, "data" => _data} = message, internal_state} ->
+      {:ok, %Message{to: peer_id} = message, internal_state} ->
         room_pid = get_room_pid(state.room)
         Room.send_message(room_pid, message, peer_id)
         {:ok, %State{state | internal_state: internal_state}}
     end
   end
 
-  defp handle_message({:ok, message}, %State{module: module, peer_id: peer_id} = state) do
-    message = Map.put(message, "from", peer_id)
+  defp handle_message(
+         {:ok, %{"data" => data, "event" => event, "to" => to}},
+         %State{module: module, peer_id: peer_id} = state
+       ) do
+    message = %Message{data: data, event: event, from: peer_id, to: to}
     callback_exec(module, :on_message, [message], state)
   end
 
-  defp handle_message({:error, _jason_error}, state) do
+  defp handle_message({:ok, message}, state) do
+    send(self(), %Message{event: "error", data: %{desciption: "Invalid message"}})
+    {:ok, state}
+  end
+
+  defp handle_message({:error, jason_error}, state) do
     Logger.warn("Wrong message")
-    {:ok, encoded} = Jason.encode(%{"event" => :error, "description" => "invalid json"})
-    {:reply, {:text, encoded}, state}
+
+    send(self(), %Message{
+      event: "error",
+      data: %{description: "Invalid JSON", details: jason_error}
+    })
+
+    {:ok, state}
   end
 
   defp make_peer_id() do

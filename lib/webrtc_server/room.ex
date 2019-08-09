@@ -1,6 +1,7 @@
 defmodule Membrane.WebRTC.Server.Room do
   use GenServer
   require Logger
+  alias Membrane.WebRTC.Server.Message
 
   defmodule State do
     @enforce_keys [:peers]
@@ -74,8 +75,8 @@ defmodule Membrane.WebRTC.Server.Room do
 
   @impl true
   def terminate(_reason, state) do
-    {:ok, message} = Jason.encode(%{"event" => :room_closed})
-    Enum.each(state.peers, fn {_, pid} -> send(pid, {:text, message}) end)
+    message = %Message{event: :room_closed}
+    Enum.each(state.peers, fn {_, pid} -> send(pid, message) end)
     :ok
   end
 
@@ -86,17 +87,16 @@ defmodule Membrane.WebRTC.Server.Room do
   end
 
   def join(pid, peer_id, peer_pid) do
-    {:ok, message} = Jason.encode(%{"event" => :joined, "data" => %{peer_id: peer_id}})
+    message = %Message{event: :joined, data: %{peer_id: peer_id}}
 
-    broadcast(pid, {:text, message})
+    broadcast(pid, message)
     send(pid, {:join, peer_id, peer_pid})
   end
 
   def leave(pid, peer_id) do
-    {:ok, message} = Jason.encode(%{"event" => :left, "data" => %{"peer_id" => peer_id}})
-
+    message = %Message{event: :left, data: %{peer_id: peer_id}}
     send(pid, {:leave, peer_id})
-    broadcast(pid, {:text, message})
+    broadcast(pid, message)
   end
 
   def broadcast(pid, message, broadcaster),
@@ -106,9 +106,7 @@ defmodule Membrane.WebRTC.Server.Room do
     do: send(pid, {:broadcast, message})
 
   def send_message(pid, message, to) do
-    {:ok, message} = message |> Jason.encode()
-
-    case GenServer.call(pid, {:send, {:text, message}, to}) do
+    case GenServer.call(pid, {:send, message, to}) do
       :ok ->
         :ok
 
