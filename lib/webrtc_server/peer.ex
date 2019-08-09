@@ -7,13 +7,14 @@ defmodule Membrane.WebRTC.Server.Peer do
 
   defmodule State do
     @enforce_keys [:module, :room, :peer_id, :internal_state]
-    defstruct @enforce_keys
+    defstruct [:room_module] ++ @enforce_keys
 
     @type t :: %__MODULE__{
             room: String.t(),
             peer_id: String.t(),
             module: module() | nil,
-            internal_state: Membrane.WebRTC.Server.Peer.internal_state()
+            internal_state: Membrane.WebRTC.Server.Peer.internal_state(),
+            room_module: module()
           }
   end
 
@@ -29,11 +30,12 @@ defmodule Membrane.WebRTC.Server.Peer do
 
   defmodule Spec do
     @enforce_keys [:module]
-    defstruct [:custom_spec] ++ @enforce_keys
+    defstruct [:custom_spec, :room_module] ++ @enforce_keys
 
     @type t :: %__MODULE__{
             module: module() | nil,
-            custom_spec: any
+            custom_spec: any,
+            room_module: module() | nil
           }
   end
 
@@ -61,15 +63,24 @@ defmodule Membrane.WebRTC.Server.Peer do
               {:ok, Message.t(), internal_state}
               | {:ok, internal_state}
 
+  defmodule DefaultRoom do
+    use Room
+  end
+
   @impl true
-  def init(request, %Spec{module: module} = spec) do
+  def init(request, %Spec{room_module: nil} = spec),
+    do: init(request, %Spec{spec | room_module: DefaultRoom})
+
+  @impl true
+  def init(request, %Spec{module: module, room_module: room_module} = spec) do
     case(callback_exec(module, :authenticate, [request], spec)) do
       {:ok, %{room: room, state: internal_state}} ->
         state = %State{
           room: room,
           peer_id: make_peer_id(),
           module: module,
-          internal_state: internal_state
+          internal_state: internal_state,
+          room_module: room_module
         }
 
         callback_exec(module, :on_init, [request], state)
@@ -83,7 +94,7 @@ defmodule Membrane.WebRTC.Server.Peer do
 
   @impl true
   def websocket_init(%State{room: room, peer_id: peer_id} = state) do
-    Room.join(get_room_pid(room), peer_id, self())
+    Room.join(get_room_pid(room, state), peer_id, self())
     callback_exec(state.module, :on_websocket_init, [], state)
   end
 
@@ -112,16 +123,16 @@ defmodule Membrane.WebRTC.Server.Peer do
 
   @impl true
   @spec websocket_info(message :: Message.t(), state :: State.t()) ::
-          {:reply, String.t(), State.t()}
+          {:reply, {:text, String.t()}, State.t()}
   def websocket_info(message, state) do
     {:ok, encoded} = message |> Map.from_struct() |> Jason.encode()
     {:reply, {:text, encoded}, state}
   end
 
   @impl true
-  def terminate(_reason, _req, %State{room: room, peer_id: peer_id}) do
+  def terminate(_reason, _req, %State{room: room, peer_id: peer_id} = state) do
     Logger.info("Terminating peer #{peer_id}")
-    room_pid = get_room_pid(room)
+    room_pid = get_room_pid(room, state)
     Room.leave(room_pid, peer_id)
     :ok
   end
@@ -179,9 +190,9 @@ defmodule Membrane.WebRTC.Server.Peer do
       {:ok, internal_state} ->
         {:ok, %State{state | internal_state: internal_state}}
 
-      {:ok, %Message{to: peer_id} = message, internal_state} ->
-        room_pid = get_room_pid(state.room)
-        Room.send_message(room_pid, message, peer_id)
+      {:ok, %Message{} = message, internal_state} ->
+        room_pid = get_room_pid(state.room, state)
+        Room.send_message(room_pid, message)
         {:ok, %State{state | internal_state: internal_state}}
     end
   end
@@ -194,7 +205,7 @@ defmodule Membrane.WebRTC.Server.Peer do
     callback_exec(module, :on_message, [message], state)
   end
 
-  defp handle_message({:ok, message}, state) do
+  defp handle_message({:ok, _message}, state) do
     send(self(), %Message{event: "error", data: %{desciption: "Invalid message"}})
     {:ok, state}
   end
@@ -215,13 +226,13 @@ defmodule Membrane.WebRTC.Server.Peer do
     peer_id
   end
 
-  defp get_room_pid(room) do
+  defp get_room_pid(room, %State{room_module: room_module}) do
     case Registry.match(Server.Registry, :room, room) do
       [{room_pid, ^room}] ->
         room_pid
 
       [] ->
-        {:ok, room_pid} = Room.create(room)
+        {:ok, room_pid} = Room.create(room, room_module)
         room_pid
     end
   end
