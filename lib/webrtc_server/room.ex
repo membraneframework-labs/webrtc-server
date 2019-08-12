@@ -10,7 +10,7 @@ defmodule Membrane.WebRTC.Server.Room do
     defstruct [:module, :internal_state] ++ @enforce_keys
 
     @type t :: %__MODULE__{
-            peers: map(),
+            peers: BiMap.t(),
             module: module(),
             internal_state: Membrane.WebRTC.Server.Peer.Context.internal_state()
           }
@@ -42,7 +42,7 @@ defmodule Membrane.WebRTC.Server.Room do
   @impl true
   def init(%{name: name, module: module} = args) do
     Registry.register(Server.Registry, :room, name)
-    state = %State{peers: %{}, module: module}
+    state = %State{peers: BiMap.new(), module: module}
     callback_exec(:on_init, [args], state)
   end
 
@@ -52,15 +52,17 @@ defmodule Membrane.WebRTC.Server.Room do
 
   @impl true
   def handle_info({:join, peer_id, pid}, state) when is_pid(pid) do
-    state = Map.put(state, :peers, Map.put(state.peers, peer_id, pid))
+    Logger.debug(inspect(self()))
+    Process.monitor(pid)
+    state = %State{state | peers: BiMap.put(state.peers, peer_id, pid)}
     {:noreply, state}
   end
 
   @impl true
   def handle_info({:leave, peer_id}, state) do
-    state = Map.put(state, :peers, Map.drop(state.peers, [peer_id]))
+    state = %State{state | peers: BiMap.delete_key(state.peers, peer_id)}
 
-    if state.peers == %{} do
+    if BiMap.size(state.peers) == 0 do
       {:stop, :normal, state}
     else
       {:noreply, state}
@@ -76,14 +78,16 @@ defmodule Membrane.WebRTC.Server.Room do
     do: callback_exec(:on_broadcast, [message, broadcaster], state)
 
   @impl true
-  def terminate(_reason, %State{peers: peers}) when map_size(peers) == 0,
-    do: :ok
+  def handle_info({:DOWN, _reference, :process, pid, _reason}, state) do
+    peer_id = BiMap.get_key(state.peers, pid)
+    leave(self(), peer_id)
+    {:noreply, state}
+  end
 
   @impl true
-  def terminate(_reason, state) do
-    message = %Message{event: :room_closed}
-    Enum.each(state.peers, fn {_, pid} -> send(pid, message) end)
-    :ok
+  def terminate(reason, state) do
+    Logger.debug("I'm termianted #{inspect(self())}")
+    callback_exec(:on_terminate, [reason], state)
   end
 
   def create(room_name, module) do
@@ -94,7 +98,6 @@ defmodule Membrane.WebRTC.Server.Room do
 
   def join(pid, peer_id, peer_pid) do
     message = %Message{event: :joined, data: %{peer_id: peer_id}}
-
     broadcast(pid, message)
     send(pid, {:join, peer_id, peer_pid})
   end
@@ -169,7 +172,7 @@ defmodule Membrane.WebRTC.Server.Room do
   end
 
   defp callback_exec(:on_terminate, args, state),
-    do: apply(state.module, :on_terminate, args)
+    do: apply(state.module, :on_terminate, args ++ [state.internal_state])
 
   defmacro __using__(_) do
     quote location: :keep do

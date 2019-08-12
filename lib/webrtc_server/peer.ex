@@ -2,7 +2,6 @@ defmodule Membrane.WebRTC.Server.Peer do
   @behaviour :cowboy_websocket
   require Logger
   alias Membrane.WebRTC.Server.{Message, Room}
-
   @type internal_state :: any
 
   defmodule State do
@@ -94,7 +93,9 @@ defmodule Membrane.WebRTC.Server.Peer do
 
   @impl true
   def websocket_init(%State{room: room, peer_id: peer_id} = state) do
-    Room.join(get_room_pid(room, state), peer_id, self())
+    room_pid = get_room_pid(room, state)
+    Room.join(room_pid, peer_id, self())
+    Process.monitor(room_pid)
     callback_exec(state.module, :on_websocket_init, [], state)
   end
 
@@ -122,24 +123,28 @@ defmodule Membrane.WebRTC.Server.Peer do
   end
 
   @impl true
-  @spec websocket_info(message :: Message.t(), state :: State.t()) ::
-          {:reply, {:text, String.t()}, State.t()}
-  def websocket_info(message, state) do
+  def websocket_info(%Message{} = message, state) do
     {:ok, encoded} = message |> Map.from_struct() |> Jason.encode()
     {:reply, {:text, encoded}, state}
   end
 
   @impl true
-  def terminate(_reason, _req, %State{room: room, peer_id: peer_id} = state) do
-    Logger.info("Terminating peer #{peer_id}")
-    room_pid = get_room_pid(room, state)
-    Room.leave(room_pid, peer_id)
-    :ok
+  def websocket_info(
+        {:DOWN, _reference, :process, _pid, reason},
+        %State{
+          peer_id: peer_id,
+          room: room
+        } = state
+      ) do
+    message = %Message{event: :room_closed, data: %{reason: reason}}
+    send(self(), message)
+    Room.join(get_room_pid(room, state), peer_id, self())
+    {:ok, state}
   end
 
   @impl true
-  def terminate(_reason, _req, _state) do
-    Logger.info("Terminating peer")
+  def terminate(_reason, _req, %State{peer_id: peer_id}) do
+    Logger.info("Terminating peer #{peer_id}")
     :ok
   end
 
