@@ -1,6 +1,6 @@
 defmodule Example.Peer do
   use Membrane.WebRTC.Server.Peer
-  import Logger
+  require Logger
   @impl true
   def authenticate(request, spec) do
     room = :cowboy_req.binding(:room, request)

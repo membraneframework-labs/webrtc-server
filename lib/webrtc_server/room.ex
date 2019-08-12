@@ -35,13 +35,13 @@ defmodule Membrane.WebRTC.Server.Room do
               state :: internal_state()
             ) :: :ok
 
-  def start_link(args) do
-    GenServer.start_link(__MODULE__, args)
+  def start_link(%{name: room_name} = args) do
+    name = {:via, Registry, {Server.Registry, room_name, :room}}
+    GenServer.start_link(__MODULE__, args, name: name)
   end
 
   @impl true
-  def init(%{name: name, module: module} = args) do
-    Registry.register(Server.Registry, :room, name)
+  def init(%{module: module} = args) do
     state = %State{peers: BiMap.new(), module: module}
     callback_exec(:on_init, [args], state)
   end
@@ -52,7 +52,6 @@ defmodule Membrane.WebRTC.Server.Room do
 
   @impl true
   def handle_info({:join, peer_id, pid}, state) when is_pid(pid) do
-    Logger.debug(inspect(self()))
     Process.monitor(pid)
     state = %State{state | peers: BiMap.put(state.peers, peer_id, pid)}
     {:noreply, state}
@@ -86,7 +85,6 @@ defmodule Membrane.WebRTC.Server.Room do
 
   @impl true
   def terminate(reason, state) do
-    Logger.debug("I'm termianted #{inspect(self())}")
     callback_exec(:on_terminate, [reason], state)
   end
 

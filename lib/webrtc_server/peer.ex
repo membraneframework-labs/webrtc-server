@@ -129,17 +129,10 @@ defmodule Membrane.WebRTC.Server.Peer do
   end
 
   @impl true
-  def websocket_info(
-        {:DOWN, _reference, :process, _pid, reason},
-        %State{
-          peer_id: peer_id,
-          room: room
-        } = state
-      ) do
+  def websocket_info({:DOWN, _reference, :process, _pid, reason}, state) do
     message = %Message{event: :room_closed, data: %{reason: reason}}
     send(self(), message)
-    Room.join(get_room_pid(room, state), peer_id, self())
-    {:ok, state}
+    {:stop, state}
   end
 
   @impl true
@@ -232,8 +225,8 @@ defmodule Membrane.WebRTC.Server.Peer do
   end
 
   defp get_room_pid(room, %State{room_module: room_module}) do
-    case Registry.match(Server.Registry, :room, room) do
-      [{room_pid, ^room}] ->
+    case Registry.lookup(Server.Registry, room) do
+      [{room_pid, :room}] ->
         room_pid
 
       [] ->
