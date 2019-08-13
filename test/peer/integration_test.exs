@@ -1,6 +1,6 @@
 defmodule Membrane.WebRTC.Server.IntegrationTest do
   @module Membrane.WebRTC.Server.Peer
-  alias Membrane.WebRTC.Server.{Peer, RoomTest, Room, Peer.State}
+  alias Membrane.WebRTC.Server.{Peer, Room, Peer.State, Message}
   use ExUnit.Case, async: false
 
   defmodule MockSocket do
@@ -9,12 +9,12 @@ defmodule Membrane.WebRTC.Server.IntegrationTest do
 
   setup_all do
     Application.start(:debug)
-    Registry.start_link(keys: :duplicate, name: Server.Registry)
+    Registry.start_link(keys: :unique, name: Server.Registry)
     Logger.configure(level: :error)
   end
 
   setup do
-    child_spec = {Room, %{name: "room"}}
+    child_spec = {Room, %{name: "room", module: Membrane.WebRTC.Server.Peer.DefaultRoom}}
     {:ok, pid} = start_supervised(child_spec)
     insert_peers(10, pid, true)
 
@@ -38,24 +38,24 @@ defmodule Membrane.WebRTC.Server.IntegrationTest do
     end
 
     test "should receive message after sending correct one", ctx do
-      {:ok, correct_message} = Jason.encode(%{"to" => "peer_1", "data" => %{}})
+      {:ok, correct_message} =
+        Jason.encode(%{"to" => "peer_1", "data" => %{}, "event" => "event"})
 
       @module.websocket_handle({:text, correct_message}, ctx[:peer_state])
-      assert_received {:text, "{\"data\":{},\"from\":\"peer_10\",\"to\":\"peer_1\"}"}
-    end
 
-    test "sending wrong message should result in receiving error reply", ctx do
-      {:ok, reply} = Jason.encode(%{"event" => :error, "description" => "invalid json"})
-
-      assert @module.websocket_handle({:text, "invalid json"}, ctx[:peer_state]) ==
-               {:reply, {:text, reply}, ctx[:peer_state]}
+      assert_received %Membrane.WebRTC.Server.Message{
+        data: %{},
+        event: "event",
+        from: "peer_10",
+        to: "peer_1"
+      }
     end
   end
 
   describe "handle terminate" do
     test "should return :ok and receive message about leaving room by peer_10", ctx do
       assert @module.terminate(:normal, %{}, ctx[:peer_state]) == :ok
-      assert_receive {:text, "{\"data\":{\"peer_id\":\"peer_10\"},\"event\":\"left\"}"}
+      assert_receive %Message{data: %{peer_id: "peer_10"}, event: :left}
     end
   end
 
@@ -69,9 +69,20 @@ defmodule Membrane.WebRTC.Server.IntegrationTest do
 
       n ->
         peer = "peer_" <> to_string(n)
-        pid = RoomTest.generate_pid(n, real)
+        pid = generate_pid(n, real)
         Room.join(room, peer, pid)
         insert_peers(n - 1, room, real)
+    end
+  end
+
+  def generate_pid(number, real) do
+    case real do
+      true ->
+        task = Task.async(fn -> :ok end)
+        task.pid
+
+      false ->
+        IEx.Helpers.pid(0, number, 0)
     end
   end
 end

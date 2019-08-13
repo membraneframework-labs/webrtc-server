@@ -1,5 +1,6 @@
 defmodule Membrane.WebRTC.Server.PeerTest do
   @module Membrane.WebRTC.Server.Peer
+  alias Membrane.WebRTC.Server.Message
   alias Membrane.WebRTC.Server.Peer.State
   use ExUnit.Case, async: true
 
@@ -27,17 +28,20 @@ defmodule Membrane.WebRTC.Server.PeerTest do
                {:reply, {:text, "pong"}, ctx[:state]}
     end
 
-    test "should return invalid json message", ctx do
-      {:ok, error_message} = Jason.encode(%{"event" => :error, "description" => "invalid json"})
+    test "should receive invalid json message", ctx do
+      @module.websocket_handle({:text, "%{not json}"}, ctx[:state])
 
-      assert @module.websocket_handle({:text, "%{not json}"}, ctx[:state]) ==
-               {:reply, {:text, error_message}, ctx[:state]}
+      assert_received %Message{data: %{description: "Invalid JSON", details: _}, event: "error"}
     end
   end
 
   describe "handle info" do
     test "should reply with same message", ctx do
-      assert @module.websocket_info("ok", ctx[:state]) == {:reply, "ok", ctx[:state]}
+      message = %Message{event: :ok, data: "same"}
+      {:ok, encoded} = message |> Map.from_struct() |> Jason.encode()
+
+      assert @module.websocket_info(message, ctx[:state]) ==
+               {:reply, {:text, encoded}, ctx[:state]}
     end
   end
 end

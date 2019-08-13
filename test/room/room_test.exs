@@ -1,8 +1,12 @@
 defmodule Membrane.WebRTC.Server.RoomTest do
   @module Membrane.WebRTC.Server.Room
-  alias Membrane.WebRTC.Server.Room.State
+  alias Membrane.WebRTC.Server.{Room.State, Message}
 
   use ExUnit.Case, async: false
+
+  defmodule MockModule do
+    use Membrane.WebRTC.Server.Room
+  end
 
   describe "handle_info:" do
     test "should remove peer" do
@@ -41,16 +45,15 @@ defmodule Membrane.WebRTC.Server.RoomTest do
       pid = generate_pid(5, true)
 
       assert @module.handle_info({:join, "peer_1", pid}, state(1)) ==
-               {:noreply, %State{peers: %{"peer_1" => pid}}}
-    end
-
-    test "should receive broadcasted message" do
-      @module.handle_info({:broadcast, :ping}, state(10, %{}, true))
-      assert_received :ping
+               {:noreply,
+                %State{
+                  peers: BiMap.new(%{"peer_1" => pid}),
+                  module: MockModule
+                }}
     end
 
     test "shouldn't receive broadcasted message when broadcaster is given" do
-      @module.handle_info({:broadcast, :ping, "peer_1"}, state(10, %{}, true))
+      @module.handle_info({:broadcast, :ping, "peer_1"}, state(10, BiMap.new(), true))
       refute_received :ping
     end
 
@@ -60,54 +63,44 @@ defmodule Membrane.WebRTC.Server.RoomTest do
     end
   end
 
-  describe "" do
-    test "should receive closing-room-text message" do
-      @module.terminate(:normal, state(5, %{}, true))
-      assert_received {:text, "{\"event\":\"room_closed\"}"}
-    end
-
-    test "shouldn't receive closing-room message" do
-      @module.terminate(:normal, state(0))
-      refute_received {:text, "{\"event\":\"room_closed\"}"}
-    end
-  end
-
   describe "handle_call: " do
     test "should receive sent ping" do
-      @module.handle_call({:send, :ping, "peer_1"}, self(), state(5, %{}, true))
-      assert_received :ping
+      ping_message = %Message{event: :ping, to: "peer_1"}
+      @module.handle_call({:send, ping_message}, self(), state(5, BiMap.new(), true))
+      assert_received ping_message
     end
 
     test "should not return :ok nor receive ping if peer not exists" do
-      new_state = state(5, %{}, true)
+      new_state = state(5, BiMap.new(), true)
+      ping_message = %Message{event: :ping, to: "peer_-1"}
 
-      refute @module.handle_call({:send, :ping, "peer_-1"}, self(), new_state) ==
+      refute @module.handle_call({:send, ping_message}, self(), new_state) ==
                {:reply, :ok, new_state}
 
-      refute_received :ping
+      refute_received ^ping_message
     end
   end
 
   describe "init" do
     test "registry itself" do
       Registry.start_link(name: Server.Registry, keys: :duplicate)
-      @module.init(%{name: "name"})
-      assert Registry.lookup(Server.Registry, :room) == [{self(), "name"}]
+      {:ok, pid} = @module.start_link(%{name: "name", module: MockModule})
+      assert Registry.lookup(Server.Registry, "name") == [{pid, :room}]
     end
   end
 
-  def state(number_of_peers, map \\ %{}, real \\ false) do
+  def state(number_of_peers, map \\ BiMap.new(), real \\ false) do
     case number_of_peers do
       0 ->
-        %State{peers: map}
+        %State{peers: map, module: MockModule}
 
       1 ->
-        state(0, Map.put(map, "peer_1", self()))
+        state(0, BiMap.put(map, "peer_1", self()))
 
       n ->
         name = "peer_" <> to_string(n)
         pid = generate_pid(n, real)
-        state(n - 1, Map.put(map, name, pid))
+        state(n - 1, BiMap.put(map, name, pid))
     end
   end
 
