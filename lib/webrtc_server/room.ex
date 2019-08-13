@@ -62,6 +62,7 @@ defmodule Membrane.WebRTC.Server.Room do
     state = %State{state | peers: BiMap.delete_key(state.peers, peer_id)}
 
     if BiMap.size(state.peers) == 0 do
+      DynamicSupervisor.terminate_child(Server.RoomSupervisor, self())
       {:stop, :normal, state}
     else
       {:noreply, state}

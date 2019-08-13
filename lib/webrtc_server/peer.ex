@@ -142,7 +142,7 @@ defmodule Membrane.WebRTC.Server.Peer do
   end
 
   defp callback_exec(module, :on_init, [request], state) do
-    args = [request, %Context{room: state.room, peer_id: state.peer_id}, state.internal_state]
+    args = prepare_args(state, [request])
 
     case apply(module, :on_init, args) do
       {:cowboy_websocket, request, internal_state} ->
@@ -154,7 +154,7 @@ defmodule Membrane.WebRTC.Server.Peer do
   end
 
   defp callback_exec(module, :on_websocket_init, [], state) do
-    args = [%Context{room: state.room, peer_id: state.peer_id}, state.internal_state]
+    args = prepare_args(state)
 
     case apply(module, :on_websocket_init, args) do
       {:ok, internal_state} ->
@@ -182,7 +182,7 @@ defmodule Membrane.WebRTC.Server.Peer do
   end
 
   defp callback_exec(module, :on_message, [message], state) do
-    args = [message, %Context{room: state.room, peer_id: state.peer_id}, state.internal_state]
+    args = prepare_args(state, [message])
 
     case apply(module, :on_message, args) do
       {:ok, internal_state} ->
@@ -234,6 +234,9 @@ defmodule Membrane.WebRTC.Server.Peer do
         room_pid
     end
   end
+
+  defp prepare_args(state, args \\ []),
+    do: args ++ [%Context{peer_id: state.peer_id, room: state.room}, state.internal_state]
 
   defmacro __using__(_) do
     quote location: :keep do
