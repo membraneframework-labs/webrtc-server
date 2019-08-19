@@ -2,7 +2,7 @@ defmodule Membrane.WebRTC.Server.RoomTest do
   @module Membrane.WebRTC.Server.Room
   alias Membrane.WebRTC.Server.{Room.State, Message}
 
-  use ExUnit.Case, async: false
+  use ExUnit.Case, async: true
 
   defmodule MockModule do
     use Membrane.WebRTC.Server.Room
@@ -83,9 +83,31 @@ defmodule Membrane.WebRTC.Server.RoomTest do
 
   describe "init" do
     test "registry itself" do
-      Registry.start_link(name: Server.Registry, keys: :duplicate)
       {:ok, pid} = @module.start_link(%{name: "name", module: MockModule})
       assert Registry.lookup(Server.Registry, "name") == [{pid, :room}]
+    end
+  end
+
+  describe "terminate" do
+    test "should receive process termination message after last peer leave" do
+      assert {:ok, room_pid} = @module.create("room", MockModule)
+      Process.monitor(room_pid)
+      @module.join(room_pid, "peer_id", generate_pid(0, false))
+      @module.leave(room_pid, "peer_id")
+      assert_receive({:DOWN, _reference, :process, ^room_pid, _reason})
+    end
+
+    test "should unregistry itself and not cause Registry termination" do
+      Application.start(:logger)
+      Logger.configure(level: :error)
+
+      assert {:ok, room_pid} = @module.create("room", MockModule)
+      assert {:ok, mock_pid} = @module.start_link(%{name: "mock", module: MockModule})
+      @module.join(room_pid, "peer_id", generate_pid(0, false))
+      @module.leave(room_pid, "peer_id")
+      Process.sleep(20)
+      assert Registry.lookup(Server.Registry, "mock") == [{mock_pid, :room}]
+      assert Registry.lookup(Server.Registry, "room") == []
     end
   end
 
