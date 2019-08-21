@@ -1,8 +1,10 @@
 defmodule Membrane.WebRTC.Server.PeerTest do
-  @module Membrane.WebRTC.Server.Peer
+  use ExUnit.Case, async: true
+
   alias Membrane.WebRTC.Server.Message
   alias Membrane.WebRTC.Server.Peer.State
-  use ExUnit.Case, async: true
+
+  @module Membrane.WebRTC.Server.Peer
 
   setup_all do
     Application.start(:logger)

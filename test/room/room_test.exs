@@ -1,8 +1,9 @@
 defmodule Membrane.WebRTC.Server.RoomTest do
-  @module Membrane.WebRTC.Server.Room
+  use ExUnit.Case, async: true
+
   alias Membrane.WebRTC.Server.{Room.State, Message}
 
-  use ExUnit.Case, async: true
+  @module Membrane.WebRTC.Server.Room
 
   defmodule MockModule do
     use Membrane.WebRTC.Server.Room

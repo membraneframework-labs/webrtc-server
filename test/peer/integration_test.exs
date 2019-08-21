@@ -1,7 +1,9 @@
 defmodule Membrane.WebRTC.Server.IntegrationTest do
-  @module Membrane.WebRTC.Server.Peer
-  alias Membrane.WebRTC.Server.{Peer, Room, Peer.State, Message}
   use ExUnit.Case, async: false
+
+  alias Membrane.WebRTC.Server.{Peer, Room, Peer.State, Message}
+
+  @module Membrane.WebRTC.Server.Peer
 
   defmodule MockSocket do
     use Peer
@@ -59,11 +61,24 @@ defmodule Membrane.WebRTC.Server.IntegrationTest do
     end
   end
 
+  def insert_peers(number_of_peers, room, real \\ false)
+  def insert_peers(1, room, real), do: Room.join(room, "peer_1", self())
+
+  def insert_peers(n, room, real) when n > 1 do
+    Room.join(room, "peer_1", self())
+
+    2..n
+    |> Enum.map(fn num ->
+      Room.join(
+        room,
+        "peer" <> to_string(num),
+        generate_pid(num, real)
+      )
+    end)
+  end
+
   def insert_peers(number_of_peers, room, real \\ false) do
     case number_of_peers do
-      0 ->
-        :ok
-
       1 ->
         Room.join(room, "peer_1", self())
 
