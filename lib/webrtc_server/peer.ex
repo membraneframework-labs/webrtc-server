@@ -1,42 +1,9 @@
 defmodule Membrane.WebRTC.Server.Peer do
   @behaviour :cowboy_websocket
   require Logger
+  alias __MODULE__.{Context, Spec, State}
   alias Membrane.WebRTC.Server.{Message, Room}
   @type internal_state :: any
-
-  defmodule State do
-    @enforce_keys [:module, :room, :peer_id, :internal_state]
-    defstruct [:room_module] ++ @enforce_keys
-
-    @type t :: %__MODULE__{
-            room: String.t(),
-            peer_id: String.t(),
-            module: module() | nil,
-            internal_state: Membrane.WebRTC.Server.Peer.internal_state(),
-            room_module: module()
-          }
-  end
-
-  defmodule Context do
-    @enforce_keys [:room, :peer_id]
-    defstruct @enforce_keys
-
-    @type t :: %__MODULE__{
-            room: String.t(),
-            peer_id: String.t()
-          }
-  end
-
-  defmodule Spec do
-    @enforce_keys [:module]
-    defstruct [:custom_spec, :room_module] ++ @enforce_keys
-
-    @type t :: %__MODULE__{
-            module: module() | nil,
-            custom_spec: any,
-            room_module: module() | nil
-          }
-  end
 
   @callback authenticate(request :: :cowboy_req.req(), spec :: any) ::
               {:ok, %{room: String.t(), state: internal_state}}
