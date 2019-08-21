@@ -17,13 +17,27 @@ defmodule Membrane.WebRTC.Server.Room do
           }
   end
 
+  @doc """
+  Callback invoked when room is created.
+  Internally called in `c:GenServer.init/1` callback.
+  """
   @callback on_init(args :: map) :: {:ok, internal_state}
 
+  @doc """
+  Callback invoked before sending message.
+  Room will send message returned by this callback, ergo returning {:ok, state} will cause ignoring message.
+  Useful for modyfing or ignoring messages.
+  """
   @callback on_message(
               message :: Message.t(),
               state :: internal_state()
             ) :: {:ok, internal_state()} | {:ok, Message.t(), internal_state()}
 
+  @doc """
+  Callback invoked before broadcasting message.
+  Room will broadcast message returned by this callback, ergo returning {:ok, state} will cause ignoring message.
+  Useful for modyfing or ignoring messages.
+  """
   @callback on_broadcast(
               message :: Message.t(),
               broadcaster :: String.t() | nil,
@@ -31,6 +45,11 @@ defmodule Membrane.WebRTC.Server.Room do
             ) ::
               {:ok, internal_state()} | {:ok, Message.t(), internal_state()}
 
+  @doc """
+  Callback invoked when room is shutting down.
+  Internally called in `c:GenServer.terminate/2` callback.
+  Useful for any cleanup required.
+  """
   @callback on_terminate(
               reason :: :normal | :shutdown | {:shutdown, any},
               state :: internal_state()
