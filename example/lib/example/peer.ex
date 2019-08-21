@@ -1,6 +1,7 @@
 defmodule Example.Peer do
   use Membrane.WebRTC.Server.Peer
   require Logger
+
   @impl true
   def authenticate(request, spec) do
     room = :cowboy_req.binding(:room, request)
@@ -13,8 +14,8 @@ defmodule Example.Peer do
     {:ok, encoded} =
       Jason.encode(%{"event" => :authenticated, "data" => %{"peer_id" => context.peer_id}})
 
-    IO.puts("Hello there, I'm #{state.username}")
-    IO.puts("This is my spec: #{inspect(state.spec)}")
+    Logger.info("Hello there, I'm #{state.username}")
+    Logger.info("This is my spec: #{inspect(state.spec)}")
     {:reply, {:text, encoded}, state}
   end
 

@@ -10,8 +10,6 @@ defmodule Example.Router do
   plug(:match)
   plug(:dispatch)
 
-  EEx.function_from_file(:defp, :application_html, "priv/static/index.html", [])
-
   get "/" do
     send_file(conn, 200, "priv/static/index.html")
   end

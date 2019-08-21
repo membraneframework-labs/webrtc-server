@@ -6,6 +6,7 @@ defmodule Example.Application do
   def start(_type, _args) do
     children = [
       Plug.Cowboy.child_spec(
+        # WebRTC over HTTP is possible, however Chrome and Firefox require HTTPS for getUserMedia()
         scheme: :https,
         plug: Example.Router,
         options: [
@@ -14,6 +15,7 @@ defmodule Example.Application do
           ip: {0, 0, 0, 0},
           password: "SECRET",
           otp_app: :example,
+          # Attach your SSL certificate and key files here
           keyfile: "priv/certs/key.pem",
           certfile: "priv/certs/certificate.pem"
         ]
