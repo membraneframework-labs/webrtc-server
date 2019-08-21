@@ -4,13 +4,14 @@ defmodule Membrane.WebRTC.Server.Room do
   alias Membrane.WebRTC.Server.Message
 
   @type internal_state :: any
+  @type peer_id :: String.t()
 
   defmodule State do
-    @enforce_keys [:peers]
-    defstruct [:module, :internal_state] ++ @enforce_keys
+    @enforce_keys [:module, :peers]
+    defstruct [:internal_state] ++ @enforce_keys
 
     @type t :: %__MODULE__{
-            peers: BiMap.t(),
+            peers: BiMap.t() | BiMap.new(),
             module: module(),
             internal_state: Membrane.WebRTC.Server.Peer.Context.internal_state()
           }
@@ -89,32 +90,67 @@ defmodule Membrane.WebRTC.Server.Room do
     callback_exec(:on_terminate, [reason], state)
   end
 
+  @doc """
+  Creates the room with given name and module under supervision of Server.RoomSupervisor. 
+  """
+  @spec create(room_name :: String.t(), module :: module()) :: DynamicSupervisor.on_start_child()
   def create(room_name, module) do
     child_spec = {Membrane.WebRTC.Server.Room, %{name: room_name, module: module}}
     Logger.info("Creating room #{room_name}")
     DynamicSupervisor.start_child(Server.RoomSupervisor, child_spec)
   end
 
-  def join(pid, peer_id, peer_pid) do
+  @doc """
+  Adds the peer to the room. Broadcasts message (%{event: joined, data: %{peer_id: peer_id}}) to other peers in room. 
+  """
+
+  @spec join(room :: pid(), peer_id :: peer_id, peer_pid :: pid()) :: :ok
+  def join(room, peer_id, peer_pid) do
     message = %Message{event: :joined, data: %{peer_id: peer_id}}
-    broadcast(pid, message)
-    send(pid, {:join, peer_id, peer_pid})
+    broadcast(room, message)
+    send(room, {:join, peer_id, peer_pid})
+    :ok
   end
 
-  def leave(pid, peer_id) do
+  @doc """
+  Removes the peer from the room. Broadcast message (%{event: left, data: %{peer_id: peer_id}}) to other peers in room. 
+  """
+  @spec leave(room :: pid(), peer_id :: peer_id) :: :ok
+  def leave(room, peer_id) do
     message = %Message{event: :left, data: %{peer_id: peer_id}}
-    send(pid, {:leave, peer_id})
-    broadcast(pid, message)
+    send(room, {:leave, peer_id})
+    broadcast(room, message)
   end
 
-  def broadcast(pid, message, broadcaster),
-    do: send(pid, {:broadcast, message, broadcaster})
+  @doc """
+  Sends the message to every peer in the room except for broadcaster.
+  """
+  @spec broadcast(
+          room :: pid(),
+          message :: Message.t(),
+          broadcaster :: peer_id
+        ) :: :ok
+  def broadcast(room, message, broadcaster) do
+    send(room, {:broadcast, message, broadcaster})
+    :ok
+  end
 
-  def broadcast(pid, message),
-    do: send(pid, {:broadcast, message})
+  @doc """
+  Send the message to every peer in the room.
+  """
+  @spec broadcast(room :: pid(), message :: Message.t()) :: :ok
+  def broadcast(room, message) do
+    send(room, {:broadcast, message})
+    :ok
+  end
 
-  def send_message(pid, %Message{} = message) do
-    case GenServer.call(pid, {:send, message}) do
+  @doc """
+  Send the message to the peer given under message.to key.
+  """
+  @spec send_message(room :: pid(), message :: Message.t()) ::
+          :ok | {:error, :no_such_peer} | {:error, :unknown_error}
+  def send_message(room, %Message{to: peer_id} = message) when peer_id != nil do
+    case GenServer.call(room, {:send, message}) do
       :ok ->
         :ok
 
@@ -124,7 +160,7 @@ defmodule Membrane.WebRTC.Server.Room do
 
       _ ->
         Logger.error("Unknown error")
-        {:error, :unknown}
+        {:error, :unknown_error}
     end
   end
 
@@ -139,13 +175,13 @@ defmodule Membrane.WebRTC.Server.Room do
         {:noreply, %State{state | internal_state: internal_state}}
 
       {:ok, message, internal_state} ->
-        pid = state.peers[message.to]
+        case state.peers[message.to] do
+          nil ->
+            {:reply, {:error, :no_such_peer}, %State{state | internal_state: internal_state}}
 
-        if pid != nil do
-          send(pid, message)
-          {:reply, :ok, %State{state | internal_state: internal_state}}
-        else
-          {:reply, {:error, :no_such_peer}, %State{state | internal_state: internal_state}}
+          pid ->
+            send(pid, message)
+            {:reply, :ok, %State{state | internal_state: internal_state}}
         end
     end
   end

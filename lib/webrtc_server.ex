@@ -5,16 +5,16 @@ defmodule Membrane.WebRTC.Server do
   defmodule Membrane.WebRTC.Server.RoomSupervisor do
     use DynamicSupervisor
 
-    def init(_),
-      do:
-        {:ok,
-         %{
-           strategy: :one_for_one,
-           intensity: 3,
-           max_children: :infinity,
-           period: 5,
-           extra_arguments: []
-         }}
+    def init(_) do
+      {:ok,
+       %{
+         strategy: :one_for_one,
+         intensity: 3,
+         max_children: :infinity,
+         period: 5,
+         extra_arguments: []
+       }}
+    end
 
     def start_link(_arg),
       do: DynamicSupervisor.start_link(__MODULE__, :ok, name: Server.RoomSupervisor)
