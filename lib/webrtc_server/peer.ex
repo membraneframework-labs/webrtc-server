@@ -8,7 +8,7 @@ defmodule Membrane.WebRTC.Server.Peer do
   @doc """
   Callback invoked before initialization of WebSocket.
   Peer will later join (or create and join) room with name returned by callback.
-  Returning {:error, reason} will cause aborting initialization of WebSocket.
+  Returning `{:error, reason}` will cause aborting initialization of WebSocket and returning reply with 403 status code and the same req as given.
   """
   @callback authenticate(request :: :cowboy_req.req(), spec :: any) ::
               {:ok, %{room: String.t(), state: internal_state}}
@@ -16,7 +16,7 @@ defmodule Membrane.WebRTC.Server.Peer do
               | {:error, reason :: any}
 
   @doc """
-  Callback nvoked before initialization of WebSocket, after successful authentication.
+  Callback invoked before initialization of WebSocket, after successful authentication.
   Useful for setting custom Cowboy WebSocket options, like timeout or maximal frame size.
   """
   @callback on_init(
@@ -40,7 +40,7 @@ defmodule Membrane.WebRTC.Server.Peer do
 
   @doc """
   Callback after successful decoding JSON message received via `websocket_handle({:test, message}, state)`.
-  Peer will proceed to send message returned by this callback to Room, ergo returning {:ok, state} will cause ignoring message.
+  Peer will proceed to send message returned by this callback to Room, ergo returning `{:ok, state}` will cause ignoring message.
   Useful for modyfing or ignoring messages.
   """
   @callback on_message(message :: Message.t(), context :: Context.t(), state :: internal_state) ::
@@ -48,6 +48,7 @@ defmodule Membrane.WebRTC.Server.Peer do
               | {:ok, internal_state}
 
   defmodule DefaultRoom do
+    @moduledoc false
     use Room
   end
 
@@ -211,7 +212,7 @@ defmodule Membrane.WebRTC.Server.Peer do
 
   defp get_room_pid(room, %State{room_module: room_module}) do
     case Registry.lookup(Server.Registry, room) do
-      [{room_pid, :room}] ->
+      [{room_pid, :room}] when is_pid(room_pid) ->
         room_pid
 
       [] ->

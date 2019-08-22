@@ -2,9 +2,9 @@ defmodule Membrane.WebRTC.Server do
   @moduledoc false
   use Application
 
-  defmodule Membrane.WebRTC.Server.RoomSupervisor do
+  defmodule RoomSupervisor do
     use DynamicSupervisor
-
+    @moduledoc false
     def init(_) do
       {:ok,
        %{

@@ -5,15 +5,17 @@ defmodule Membrane.WebRTC.Server.Room do
 
   @type internal_state :: any
   @type peer_id :: String.t()
-
+  @type room_options :: %{name: Registry.key(), module: module}
   defmodule State do
+    @moduledoc false
+
     @enforce_keys [:module, :peers]
     defstruct [:internal_state] ++ @enforce_keys
 
     @type t :: %__MODULE__{
             peers: BiMap.t() | BiMap.new(),
             module: module(),
-            internal_state: Membrane.WebRTC.Server.Peer.Context.internal_state()
+            internal_state: Membrane.WebRTC.Server.Room.internal_state()
           }
   end
 
@@ -21,11 +23,11 @@ defmodule Membrane.WebRTC.Server.Room do
   Callback invoked when room is created.
   Internally called in `c:GenServer.init/1` callback.
   """
-  @callback on_init(args :: map) :: {:ok, internal_state}
+  @callback on_init(args :: room_options) :: {:ok, internal_state}
 
   @doc """
   Callback invoked before sending message.
-  Room will send message returned by this callback, ergo returning {:ok, state} will cause ignoring message.
+  Room will send message returned by this callback, ergo returning `{:ok, state}` will cause ignoring message.
   Useful for modyfing or ignoring messages.
   """
   @callback on_message(
@@ -35,7 +37,7 @@ defmodule Membrane.WebRTC.Server.Room do
 
   @doc """
   Callback invoked before broadcasting message.
-  Room will broadcast message returned by this callback, ergo returning {:ok, state} will cause ignoring message.
+  Room will broadcast message returned by this callback, ergo returning `{:ok, state}` will cause ignoring message.
   Useful for modyfing or ignoring messages.
   """
   @callback on_broadcast(
@@ -55,6 +57,14 @@ defmodule Membrane.WebRTC.Server.Room do
               state :: internal_state()
             ) :: :ok
 
+  @doc """
+  Starts Room based on given module, registers it in Server.Registry (under given name and value: `:room`) and links it to current process.
+
+  Args are passed to module's `c:on_init/1` callback.
+
+  Calls and return the same value as 'c:GenServer.start_link/3'.
+  """
+  @spec start_link(args :: room_options) :: GenServer.on_start()
   def start_link(%{name: room_name} = args) do
     name = {:via, Registry, {Server.Registry, room_name, :room}}
     GenServer.start_link(__MODULE__, args, name: name)
@@ -120,7 +130,7 @@ defmodule Membrane.WebRTC.Server.Room do
   end
 
   @doc """
-  Adds the peer to the room. Broadcasts message (%{event: joined, data: %{peer_id: peer_id}}) to other peers in room. 
+  Adds the peer to the room. Broadcasts message (`%Message{event: joined, data: %{peer_id: peer_id}}`) to other peers in room. 
   """
 
   @spec join(room :: pid(), peer_id :: peer_id, peer_pid :: pid()) :: :ok
@@ -132,7 +142,7 @@ defmodule Membrane.WebRTC.Server.Room do
   end
 
   @doc """
-  Removes the peer from the room. Broadcast message (%{event: left, data: %{peer_id: peer_id}}) to other peers in room. 
+  Removes the peer from the room. Broadcast message (`%Message{event: left, data: %{peer_id: peer_id}`}) to other peers in room. 
   """
   @spec leave(room :: pid(), peer_id :: peer_id) :: :ok
   def leave(room, peer_id) do
@@ -155,7 +165,7 @@ defmodule Membrane.WebRTC.Server.Room do
   end
 
   @doc """
-  Send the message to every peer in the room.
+  Sends the message to every peer in the room.
   """
   @spec broadcast(room :: pid(), message :: Message.t()) :: :ok
   def broadcast(room, message) do
@@ -164,7 +174,7 @@ defmodule Membrane.WebRTC.Server.Room do
   end
 
   @doc """
-  Send the message to the peer given under message.to key.
+  Sends the message to the peer given under `message.to` key.
   """
   @spec send_message(room :: pid(), message :: Message.t()) ::
           :ok | {:error, :no_such_peer} | {:error, :unknown_error}

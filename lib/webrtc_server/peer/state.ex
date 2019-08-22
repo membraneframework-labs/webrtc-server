@@ -1,4 +1,6 @@
 defmodule Membrane.WebRTC.Server.Peer.State do
+  @moduledoc false
+
   @enforce_keys [:module, :room, :peer_id, :internal_state]
   defstruct [:room_module] ++ @enforce_keys
 
