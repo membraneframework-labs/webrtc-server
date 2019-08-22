@@ -5,11 +5,20 @@ defmodule Membrane.WebRTC.Server.Peer do
   alias Membrane.WebRTC.Server.{Message, Room}
   @type internal_state :: any
 
+  @doc """
+  Callback invoked before initialization of WebSocket.
+  Peer will later join (or create and join) room with name returned by callback.
+  Returning {:error, reason} will cause aborting initialization of WebSocket.
+  """
   @callback authenticate(request :: :cowboy_req.req(), spec :: any) ::
               {:ok, %{room: String.t(), state: internal_state}}
               | {:ok, %{room: String.t()}}
               | {:error, reason :: any}
 
+  @doc """
+  Callback nvoked before initialization of WebSocket, after successful authentication.
+  Useful for setting custom Cowboy WebSocket options, like timeout or maximal frame size.
+  """
   @callback on_init(
               request :: :cowboy_req.req(),
               context :: Context.t(),
@@ -18,6 +27,10 @@ defmodule Membrane.WebRTC.Server.Peer do
               {:cowboy_websocket, :cowboy_req.req(), internal_state}
               | {:cowboy_websocket, :cowboy_req.req(), internal_state, :cowboy_websocket.opts()}
 
+  @doc """
+  Callback invoked after initialization of WebSocket.
+  Useful for setting up internal state or informing client about successful authentication and initialization. 
+  """
   @callback on_websocket_init(context :: Context.t(), state :: internal_state) ::
               {:ok, internal_state}
               | {:ok, internal_state, :hibernate}
@@ -25,6 +38,11 @@ defmodule Membrane.WebRTC.Server.Peer do
               | {:reply, :cow_ws.frame() | [:cow_ws.frame()], internal_state, :hibernate}
               | {:stop, internal_state}
 
+  @doc """
+  Callback after successful decoding JSON message received via `websocket_handle({:test, message}, state)`.
+  Peer will proceed to send message returned by this callback to Room, ergo returning {:ok, state} will cause ignoring message.
+  Useful for modyfing or ignoring messages.
+  """
   @callback on_message(message :: Message.t(), context :: Context.t(), state :: internal_state) ::
               {:ok, Message.t(), internal_state}
               | {:ok, internal_state}
