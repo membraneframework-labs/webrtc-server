@@ -1,12 +1,22 @@
 defmodule Membrane.WebRTC.Server.IntegrationTest do
   use ExUnit.Case, async: false
-
+  require Logger
   alias Membrane.WebRTC.Server.{Peer, Room, Peer.State, Message}
 
   @module Membrane.WebRTC.Server.Peer
 
-  defmodule MockSocket do
+  defmodule MockPeer do
     use Peer
+  end
+
+  defmodule CustomModule do
+    use Peer
+
+    @impl true
+    def on_websocket_init(_ctx, _state) do
+      state = %{a: :a}
+      {:ok, state, :hibernate}
+    end
   end
 
   setup_all do
@@ -24,11 +34,32 @@ defmodule Membrane.WebRTC.Server.IntegrationTest do
       peer_state: %State{
         room: "room",
         peer_id: "peer_10",
-        module: MockSocket,
+        module: MockPeer,
         internal_state: %{}
       },
       room_pid: pid
     ]
+  end
+
+  describe "websocket_init" do
+    test "should execute custom callback", ctx do
+      state = %State{ctx[:peer_state] | module: CustomModule}
+
+      assert @module.websocket_init(state) ==
+               {:ok, %State{state | internal_state: %{a: :a}}, :hibernate}
+    end
+
+    test "should return {:ok, state} when no callback provided", ctx do
+      assert @module.websocket_init(ctx[:peer_state]) == {:ok, ctx[:peer_state]}
+    end
+
+    test "should cause joining room", ctx do
+      @module.websocket_init(%State{ctx[:peer_state] | peer_id: "test_peer"})
+
+      assert [{room_pid, :room}] = Registry.lookup(Server.Registry, "room")
+      assert is_pid(room_pid)
+      assert Room.send_message(room_pid, %Message{event: :ping, to: "test_peer"}) == :ok
+    end
   end
 
   describe "handle frames" do
@@ -62,7 +93,7 @@ defmodule Membrane.WebRTC.Server.IntegrationTest do
   end
 
   def insert_peers(number_of_peers, room, real \\ false)
-  def insert_peers(1, room, real), do: Room.join(room, "peer_1", self())
+  def insert_peers(1, room, _real), do: Room.join(room, "peer_1", self())
 
   def insert_peers(n, room, real) when n > 1 do
     Room.join(room, "peer_1", self())
