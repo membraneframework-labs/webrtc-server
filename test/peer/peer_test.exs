@@ -2,9 +2,31 @@ defmodule Membrane.WebRTC.Server.PeerTest do
   use ExUnit.Case, async: true
 
   alias Membrane.WebRTC.Server.Message
-  alias Membrane.WebRTC.Server.Peer.State
+  alias Membrane.WebRTC.Server.{Peer, Peer.State, Peer.Spec}
 
-  @module Membrane.WebRTC.Server.Peer
+  @module Peer
+
+  defmodule MockPeer do
+    use Peer
+  end
+
+  defmodule CustomPeer do
+    use Peer
+
+    @impl true
+    def on_init(req, _ctx, _state) do
+      {:cowboy_websocket, req, :custom_internal_state, %{idle_timeout: 20}}
+    end
+  end
+
+  defmodule ErrorPeer do
+    use Peer
+
+    @impl true
+    def authenticate(_req, _spec) do
+      {:error, :this_is_supposed_to_fail}
+    end
+  end
 
   setup_all do
     Application.start(:logger)
@@ -12,7 +34,42 @@ defmodule Membrane.WebRTC.Server.PeerTest do
   end
 
   setup do
-    [state: %State{room: "room", peer_id: "1", module: nil, internal_state: %{}}]
+    [
+      state: %State{
+        room: "room",
+        peer_id: "1",
+        module: MockPeer,
+        internal_state: nil,
+        room_module: Peer.DefaultRoom
+      },
+      mock_request: %{
+        method: "GET",
+        pid: spawn(fn -> :ok end),
+        streamid: 1
+      }
+    ]
+  end
+
+  describe "init" do
+    test "should return request with 403 status code when callback authenticate return {:error, reason}",
+         ctx do
+      assert @module.init(ctx[:mock_request], %Spec{module: ErrorPeer}) ==
+               {:ok, :cowboy_req.reply(403, ctx[:mock_request]), %{}}
+    end
+
+    test "should initialize websocket after successful authentication", ctx do
+      request = ctx[:mock_request]
+
+      assert {:cowboy_websocket, request, %State{}, _} =
+               @module.init(request, %Spec{module: MockPeer})
+    end
+
+    test "should return custom WebSocket options and initialize internal state correctly", ctx do
+      request = ctx[:request]
+
+      assert {:cowboy_websocket, request, %State{internal_state: :custom_internal_state},
+              %{idle_timeout: 20}} = @module.init(request, %Spec{module: CustomPeer})
+    end
   end
 
   describe "handle frame" do

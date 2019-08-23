@@ -57,7 +57,7 @@ defmodule Membrane.WebRTC.Server.IntegrationTest do
   describe "handle terminate" do
     test "should return :ok and receive message about leaving room by peer_10", ctx do
       assert @module.terminate(:normal, %{}, ctx[:peer_state]) == :ok
-      assert_receive %Message{data: %{peer_id: "peer_10"}, event: :left}
+      assert_receive %Message{data: %{peer_id: "peer10"}, event: :left}
     end
   end
 
@@ -77,7 +77,7 @@ defmodule Membrane.WebRTC.Server.IntegrationTest do
     end)
   end
 
-  def insert_peers(number_of_peers, room, real \\ false) do
+  def insert_peers(number_of_peers, room, real) do
     case number_of_peers do
       1 ->
         Room.join(room, "peer_1", self())
