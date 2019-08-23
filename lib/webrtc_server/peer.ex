@@ -47,6 +47,18 @@ defmodule Membrane.WebRTC.Server.Peer do
               {:ok, Message.t(), internal_state}
               | {:ok, internal_state}
 
+  @doc """
+  Callback invoked when peer is shutting down.
+  Internally called in `:cowboy_websocket.terminate/3` callback.
+  Useful for any cleanup required.
+  """
+  @callback on_terminate(
+              reason :: :cowboy_websocket.reason(),
+              partial_req :: :cowboy_req.req(),
+              context :: Context.t(),
+              state :: internal_state
+            ) :: :ok
+
   defmodule DefaultRoom do
     @moduledoc false
     use Room
@@ -122,9 +134,9 @@ defmodule Membrane.WebRTC.Server.Peer do
   end
 
   @impl true
-  def terminate(_reason, _req, %State{peer_id: peer_id}) do
+  def terminate(reason, req, %State{peer_id: peer_id} = state) do
     Logger.info("Terminating peer #{peer_id}")
-    :ok
+    callback_exec(state.module, :on_terminate, [reason, req], state)
   end
 
   defp callback_exec(module, :on_init, [request], state) do
@@ -179,6 +191,11 @@ defmodule Membrane.WebRTC.Server.Peer do
         Room.send_message(room_pid, message)
         {:ok, %State{state | internal_state: internal_state}}
     end
+  end
+
+  defp callback_exec(module, :on_terminate, args, state) do
+    args = prepare_args(state, args)
+    apply(module, :on_terminate, args)
   end
 
   defp handle_message(
@@ -242,10 +259,14 @@ defmodule Membrane.WebRTC.Server.Peer do
       def on_message(message, _context, state),
         do: {:ok, message, state}
 
+      def on_terminate(_reason, _req, _context, _state),
+        do: :ok
+
       defoverridable authenticate: 2,
                      on_init: 3,
                      on_websocket_init: 2,
-                     on_message: 3
+                     on_message: 3,
+                     on_terminate: 4
     end
   end
 end

@@ -1,6 +1,5 @@
 defmodule Membrane.WebRTC.Server.IntegrationTest do
   use ExUnit.Case, async: false
-  require Logger
   alias Membrane.WebRTC.Server.{Peer, Room, Peer.State, Message}
 
   @module Membrane.WebRTC.Server.Peer
