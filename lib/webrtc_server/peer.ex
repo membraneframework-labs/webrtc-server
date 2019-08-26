@@ -1,16 +1,30 @@
 defmodule Membrane.WebRTC.Server.Peer do
+  @moduledoc """
+  Implementation of [`Cowboy WebSocket`](https://ninenines.eu/docs/en/cowboy/2.6/manual/cowboy_websocket/).
+
+  Module prepared to perform authentication; initialize WebSocket; exchange JSON messages with client and other peers; join, create and monitor Rooms.
+
+  Every message received from client (via `websocket_handle({:text, message}, state)`) must be JSON equivalent of `Membrane.WebRTC.Server.Message` struct. 
+
+  Every Erlang message in form of `Membrane.WebRTC.Server.Message` (i.e. messages about peers joining/leaving room, ICE candidates from other peers) will be encode into JSON and passed to client via `{:reply, {:text, json}, state}`.
+  """
+
   @behaviour :cowboy_websocket
   require Logger
-  alias __MODULE__.{Context, Spec, State}
+  alias __MODULE__.{Context, Options, State}
   alias Membrane.WebRTC.Server.{Message, Room}
+
+  @typedoc """
+  Defines custom state of Peer, passed as argument and returned by callbacks. 
+  """
   @type internal_state :: any
 
   @doc """
   Callback invoked before initialization of WebSocket.
   Peer will later join (or create and join) room with name returned by callback.
-  Returning `{:error, reason}` will cause aborting initialization of WebSocket and returning reply with 403 status code and the same req as given.
+  Returning `{:error, reason}` will cause aborting initialization of WebSocket and returning reply with 403 status code and the same request as given.
   """
-  @callback authenticate(request :: :cowboy_req.req(), spec :: any) ::
+  @callback authenticate(request :: :cowboy_req.req(), options :: any) ::
               {:ok, %{room: String.t(), state: internal_state}}
               | {:ok, %{room: String.t()}}
               | {:error, reason :: any}
@@ -39,7 +53,7 @@ defmodule Membrane.WebRTC.Server.Peer do
               | {:stop, internal_state}
 
   @doc """
-  Callback after successful decoding JSON message received via `websocket_handle({:test, message}, state)`.
+  Callback invoked after successful decoding JSON message received via `websocket_handle({:test, message}, state)`.
   Peer will proceed to send message returned by this callback to Room, ergo returning `{:ok, state}` will cause ignoring message.
   Useful for modyfing or ignoring messages.
   """
@@ -65,12 +79,12 @@ defmodule Membrane.WebRTC.Server.Peer do
   end
 
   @impl true
-  def init(request, %Spec{room_module: nil} = spec),
-    do: init(request, %Spec{spec | room_module: DefaultRoom})
+  def init(request, %Options{room_module: nil} = options),
+    do: init(request, %Options{options | room_module: DefaultRoom})
 
   @impl true
-  def init(request, %Spec{module: module, room_module: room_module} = spec) do
-    case(callback_exec(module, :authenticate, [request], spec)) do
+  def init(request, %Options{module: module, room_module: room_module} = options) do
+    case(callback_exec(module, :authenticate, [request], options)) do
       {:ok, %{room: room, state: internal_state}} ->
         state = %State{
           room: room,
@@ -111,8 +125,8 @@ defmodule Membrane.WebRTC.Server.Peer do
     do: {:reply, {:pong, data}, state}
 
   @impl true
-  def websocket_handle({:text, text}, state),
-    do: text |> Jason.decode() |> handle_message(state)
+  def websocket_handle({:text, message}, state),
+    do: message |> Jason.decode() |> handle_message(state)
 
   @impl true
   def websocket_handle(_frame, state) do
@@ -172,8 +186,8 @@ defmodule Membrane.WebRTC.Server.Peer do
     end
   end
 
-  defp callback_exec(module, :authenticate, args, spec) do
-    case apply(module, :authenticate, args ++ [spec.custom_spec]) do
+  defp callback_exec(module, :authenticate, args, options) do
+    case apply(module, :authenticate, args ++ [options.custom_options]) do
       {:ok, room: room} -> {:ok, %{room: room, state: nil}}
       result -> result
     end
@@ -245,7 +259,7 @@ defmodule Membrane.WebRTC.Server.Peer do
     quote location: :keep do
       @behaviour unquote(__MODULE__)
 
-      def authenticate(_request, _spec),
+      def authenticate(_request, _options),
         do: {:ok, room: "room"}
 
       def on_init(request, _context, state) do

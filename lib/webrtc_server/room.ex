@@ -1,11 +1,29 @@
 defmodule Membrane.WebRTC.Server.Room do
+  @moduledoc """
+  Module containing functions for constructing rooms, adding or removing peers to them or sending and broadcasting messages between peers. 
+
+  Room is `GenServer` prepared to send messages between peers by storing their IDs and PIDs.
+  """
+
   use GenServer
   require Logger
   alias Membrane.WebRTC.Server.Message
 
+  @typedoc """
+  Defines custom state of Room, passed as argument and returned by callbacks. 
+  """
   @type internal_state :: any
+
+  @typedoc """
+  Defines ID bound to PID when Peer joins the Room.
+  """
   @type peer_id :: String.t()
+
+  @typedoc """
+  Defines options that can be passed to `start_link/1` and `c:on_init/1` callback.
+  """
   @type room_options :: %{name: Registry.key(), module: module}
+
   defmodule State do
     @moduledoc false
 
@@ -21,7 +39,7 @@ defmodule Membrane.WebRTC.Server.Room do
 
   @doc """
   Callback invoked when room is created.
-  Internally called in `c:GenServer.init/1` callback.
+  Internally called in `init/1` callback.
   """
   @callback on_init(args :: room_options) :: {:ok, internal_state}
 
@@ -61,8 +79,6 @@ defmodule Membrane.WebRTC.Server.Room do
   Starts Room based on given module, registers it in Server.Registry (under given name and value: `:room`) and links it to current process.
 
   Args are passed to module's `c:on_init/1` callback.
-
-  Calls and return the same value as 'c:GenServer.start_link/3'.
   """
   @spec start_link(args :: room_options) :: GenServer.on_start()
   def start_link(%{name: room_name} = args) do
@@ -120,7 +136,7 @@ defmodule Membrane.WebRTC.Server.Room do
   end
 
   @doc """
-  Creates the room with given name and module under supervision of Server.RoomSupervisor. 
+  Creates the room with given name and module under supervision of `Server.RoomSupervisor`. 
   """
   @spec create(room_name :: String.t(), module :: module()) :: DynamicSupervisor.on_start_child()
   def create(room_name, module) do
@@ -142,7 +158,7 @@ defmodule Membrane.WebRTC.Server.Room do
   end
 
   @doc """
-  Removes the peer from the room. Broadcast message (`%Message{event: left, data: %{peer_id: peer_id}`}) to other peers in room. 
+  Removes the peer from the room. Broadcast message (`%Message{event: left, data: %{peer_id: peer_id}}`) to other peers in room. 
   """
   @spec leave(room :: pid(), peer_id :: peer_id) :: :ok
   def leave(room, peer_id) do

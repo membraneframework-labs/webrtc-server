@@ -7,7 +7,7 @@ defmodule Membrane.WebRTC.Server.MixProject do
   def project do
     [
       app: :membrane_webrtc_server,
-      name: "WebRTC Signaling Server",
+      name: "WebRTC Server",
       version: @version,
       elixir: "~> 1.9",
       start_permanent: Mix.env() == :prod,

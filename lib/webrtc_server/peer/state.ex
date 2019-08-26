@@ -7,7 +7,7 @@ defmodule Membrane.WebRTC.Server.Peer.State do
   @type t :: %__MODULE__{
           room: String.t(),
           peer_id: String.t(),
-          module: module() | nil,
+          module: module(),
           internal_state: Membrane.WebRTC.Server.Peer.internal_state(),
           room_module: module()
         }
