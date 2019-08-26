@@ -1,7 +1,7 @@
 defmodule Membrane.WebRTC.Server.MixProject do
   use Mix.Project
 
-  @version "0.1.0"
+  @version "1.0.0"
   @github_url "https://github.com/membraneframework/webrtc-server"
 
   def project do
