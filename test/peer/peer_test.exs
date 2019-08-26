@@ -2,7 +2,7 @@ defmodule Membrane.WebRTC.Server.PeerTest do
   use ExUnit.Case, async: true
 
   alias Membrane.WebRTC.Server.Message
-  alias Membrane.WebRTC.Server.{Peer, Peer.State, Peer.Spec}
+  alias Membrane.WebRTC.Server.{Peer, Peer.State, Peer.Options}
 
   @module Peer
 
@@ -23,7 +23,7 @@ defmodule Membrane.WebRTC.Server.PeerTest do
     use Peer
 
     @impl true
-    def authenticate(_req, _spec) do
+    def authenticate(_req, _options) do
       {:error, :this_is_supposed_to_fail}
     end
   end
@@ -53,7 +53,7 @@ defmodule Membrane.WebRTC.Server.PeerTest do
   describe "init" do
     test "should return request with 403 status code when callback authenticate return {:error, reason}",
          ctx do
-      assert @module.init(ctx[:mock_request], %Spec{module: ErrorPeer}) ==
+      assert @module.init(ctx[:mock_request], %Options{module: ErrorPeer}) ==
                {:ok, :cowboy_req.reply(403, ctx[:mock_request]), %{}}
     end
 
@@ -61,14 +61,14 @@ defmodule Membrane.WebRTC.Server.PeerTest do
       request = ctx[:mock_request]
 
       assert {:cowboy_websocket, request, %State{}, _} =
-               @module.init(request, %Spec{module: MockPeer})
+               @module.init(request, %Options{module: MockPeer})
     end
 
     test "should return custom WebSocket options and initialize internal state correctly", ctx do
       request = ctx[:request]
 
       assert {:cowboy_websocket, request, %State{internal_state: :custom_internal_state},
-              %{idle_timeout: 20}} = @module.init(request, %Spec{module: CustomPeer})
+              %{idle_timeout: 20}} = @module.init(request, %Options{module: CustomPeer})
     end
   end
 

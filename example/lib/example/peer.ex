@@ -3,9 +3,9 @@ defmodule Example.Peer do
   require Logger
 
   @impl true
-  def authenticate(request, spec) do
+  def authenticate(request, options) do
     room = :cowboy_req.binding(:room, request)
-    state = %{username: "user_#{Integer.to_string(:rand.uniform(1_000_000))}", spec: spec}
+    state = %{username: "user_#{Integer.to_string(:rand.uniform(1_000_000))}", options: options}
     {:ok, %{room: room, state: state}}
   end
 
@@ -15,7 +15,7 @@ defmodule Example.Peer do
       Jason.encode(%{"event" => :authenticated, "data" => %{"peer_id" => context.peer_id}})
 
     Logger.info("Hello there, I'm #{state.username}")
-    Logger.info("This is my spec: #{inspect(state.spec)}")
+    Logger.info("These are my options: #{inspect(state.options)}")
     {:reply, {:text, encoded}, state}
   end
 
