@@ -6,9 +6,9 @@ defmodule Membrane.WebRTC.Server.Message do
   defstruct @enforce_keys ++ [:data, :from, :to]
 
   @type t :: %__MODULE__{
-          data: String.t() | map,
+          data: String.t() | map | nil,
           event: String.t(),
-          from: String.t(),
-          to: String.t()
+          from: String.t() | nil,
+          to: String.t() | nil
         }
 end

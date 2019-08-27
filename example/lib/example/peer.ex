@@ -11,8 +11,9 @@ defmodule Example.Peer do
 
   @impl true
   def on_websocket_init(context, state) do
-    {:ok, encoded} =
-      Jason.encode(%{"event" => :authenticated, "data" => %{"peer_id" => context.peer_id}})
+    encoded =
+      %{"event" => :authenticated, "data" => %{"peer_id" => context.peer_id}}
+      |> Jason.encode!()
 
     Logger.info("Hello there, I'm #{state.username}")
     Logger.info("These are my options: #{inspect(state.options)}")
