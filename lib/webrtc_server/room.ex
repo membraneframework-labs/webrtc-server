@@ -39,7 +39,7 @@ defmodule Membrane.WebRTC.Server.Room do
 
   @doc """
   Callback invoked when room is created.
-  Internally called in `init/1` callback.
+  Internally called in `c:init/1` callback.
   """
   @callback on_init(args :: room_options) :: {:ok, internal_state}
 
@@ -86,62 +86,12 @@ defmodule Membrane.WebRTC.Server.Room do
     GenServer.start_link(__MODULE__, args, name: name)
   end
 
-  @impl true
-  def init(%{module: module} = args) do
-    state = %State{peers: BiMap.new(), module: module}
-    callback_exec(:on_init, [args], state)
-  end
-
-  @impl true
-  def handle_call({:send, message}, _from, state),
-    do: callback_exec(:on_message, [message], state)
-
-  @impl true
-  def handle_info({:join, peer_id, pid}, state) when is_pid(pid) do
-    Process.monitor(pid)
-    state = %State{state | peers: BiMap.put(state.peers, peer_id, pid)}
-    {:noreply, state}
-  end
-
-  @impl true
-  def handle_info({:leave, peer_id}, state) do
-    state = %State{state | peers: BiMap.delete_key(state.peers, peer_id)}
-
-    if BiMap.size(state.peers) == 0 do
-      DynamicSupervisor.terminate_child(Server.RoomSupervisor, self())
-      {:stop, :normal, state}
-    else
-      {:noreply, state}
-    end
-  end
-
-  @impl true
-  def handle_info({:broadcast, message}, state),
-    do: callback_exec(:on_broadcast, [message, nil], state)
-
-  @impl true
-  def handle_info({:broadcast, message, broadcaster}, state),
-    do: callback_exec(:on_broadcast, [message, broadcaster], state)
-
-  @impl true
-  def handle_info({:DOWN, _reference, :process, pid, _reason}, state) do
-    peer_id = BiMap.get_key(state.peers, pid)
-    leave(self(), peer_id)
-    {:noreply, state}
-  end
-
-  @impl true
-  def terminate(reason, state) do
-    callback_exec(:on_terminate, [reason], state)
-  end
-
   @doc """
   Creates the room with given name and module under supervision of `Server.RoomSupervisor`. 
   """
   @spec create(room_name :: String.t(), module :: module()) :: DynamicSupervisor.on_start_child()
   def create(room_name, module) do
     child_spec = {Membrane.WebRTC.Server.Room, %{name: room_name, module: module}}
-    Logger.info("Creating room #{room_name}")
     DynamicSupervisor.start_child(Server.RoomSupervisor, child_spec)
   end
 
@@ -207,6 +157,55 @@ defmodule Membrane.WebRTC.Server.Room do
         Logger.error("Unknown error")
         {:error, :unknown_error}
     end
+  end
+
+  @impl true
+  def init(%{module: module} = args) do
+    state = %State{peers: BiMap.new(), module: module}
+    callback_exec(:on_init, [args], state)
+  end
+
+  @impl true
+  def handle_call({:send, message}, _from, state),
+    do: callback_exec(:on_message, [message], state)
+
+  @impl true
+  def handle_info({:join, peer_id, pid}, state) when is_pid(pid) do
+    Process.monitor(pid)
+    state = %State{state | peers: BiMap.put(state.peers, peer_id, pid)}
+    {:noreply, state}
+  end
+
+  @impl true
+  def handle_info({:leave, peer_id}, state) do
+    state = %State{state | peers: BiMap.delete_key(state.peers, peer_id)}
+
+    if BiMap.size(state.peers) == 0 do
+      DynamicSupervisor.terminate_child(Server.RoomSupervisor, self())
+      {:stop, :normal, state}
+    else
+      {:noreply, state}
+    end
+  end
+
+  @impl true
+  def handle_info({:broadcast, message}, state),
+    do: callback_exec(:on_broadcast, [message, nil], state)
+
+  @impl true
+  def handle_info({:broadcast, message, broadcaster}, state),
+    do: callback_exec(:on_broadcast, [message, broadcaster], state)
+
+  @impl true
+  def handle_info({:DOWN, _reference, :process, pid, _reason}, state) do
+    peer_id = BiMap.get_key(state.peers, pid)
+    leave(self(), peer_id)
+    {:noreply, state}
+  end
+
+  @impl true
+  def terminate(reason, state) do
+    callback_exec(:on_terminate, [reason], state)
   end
 
   defp callback_exec(:on_init, args, state) do
