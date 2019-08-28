@@ -44,13 +44,8 @@ defmodule Membrane.WebRTC.Server.RoomTest do
 
     test "should replace already existing peer" do
       pid = generate_pid(5, true)
-
-      assert @module.handle_info({:join, "peer_1", pid}, state(1)) ==
-               {:noreply,
-                %State{
-                  peers: BiMap.new(%{"peer_1" => pid}),
-                  module: MockModule
-                }}
+      state = %State{peers: BiMap.new(%{"peer_1" => pid}), module: MockModule}
+      assert @module.handle_info({:join, "peer_1", pid}, state(1)) == {:noreply, state}
     end
 
     test "shouldn't receive broadcasted message when broadcaster is given" do
@@ -130,8 +125,7 @@ defmodule Membrane.WebRTC.Server.RoomTest do
   def generate_pid(number, real) do
     case real do
       true ->
-        task = Task.async(fn -> :ok end)
-        task.pid
+        spawn(fn -> :ok end)
 
       false ->
         IEx.Helpers.pid(0, number, 0)
