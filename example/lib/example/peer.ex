@@ -5,8 +5,13 @@ defmodule Example.Peer do
   @impl true
   def authenticate(request, options) do
     room = :cowboy_req.binding(:room, request)
-    state = %{username: "user_#{Integer.to_string(:rand.uniform(1_000_000))}", options: options}
-    {:ok, %{room: room, state: state}}
+
+    if room == "undefined" do
+      {:error, :no_room_bound_in_url}
+    else
+      state = %{username: "user_#{Integer.to_string(:rand.uniform(1_000_000))}", options: options}
+      {:ok, %{room: room, state: state}}
+    end
   end
 
   @impl true

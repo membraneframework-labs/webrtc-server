@@ -1,6 +1,6 @@
 %{
   "bimap": {:hex, :bimap, "1.0.1", "6c92d76d73ed1cf04b2b6e8548c732256da5fe9efe9ab64b90724db58bdc8f18", [:mix], [], "hexpm"},
-  "bunch": {:hex, :bunch, "1.1.0", "bf9ca22c788ad4f486afb4d6d5e1211ab09cbee473c5cf370e6e550b1df4bc4b", [:mix], [], "hexpm"},
+  "bunch": {:hex, :bunch, "1.2.0", "f26c6c84e2e5e245620c73a0a4560ca91a75b25744012537e055426568916ab7", [:mix], [], "hexpm"},
   "cowboy": {:hex, :cowboy, "2.6.3", "99aa50e94e685557cad82e704457336a453d4abcb77839ad22dbe71f311fcc06", [:rebar3], [{:cowlib, "~> 2.7.3", [hex: :cowlib, repo: "hexpm", optional: false]}, {:ranch, "~> 1.7.1", [hex: :ranch, repo: "hexpm", optional: false]}], "hexpm"},
   "cowlib": {:hex, :cowlib, "2.7.3", "a7ffcd0917e6d50b4d5fb28e9e2085a0ceb3c97dea310505f7460ff5ed764ce9", [:rebar3], [], "hexpm"},
   "dialyxir": {:hex, :dialyxir, "0.5.1", "b331b091720fd93e878137add264bac4f644e1ddae07a70bf7062c7862c4b952", [:mix], [], "hexpm"},

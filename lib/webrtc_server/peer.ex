@@ -6,7 +6,7 @@ defmodule Membrane.WebRTC.Server.Peer do
 
   Every message received from client (via `websocket_handle({:text, message}, state)`) must be JSON equivalent of `Membrane.WebRTC.Server.Message` struct. 
 
-  Every Erlang message in form of `Membrane.WebRTC.Server.Message` (i.e. messages about peers joining/leaving room, ICE candidates from other peers) will be encode into JSON and passed to client via `{:reply, {:text, json}, state}`.
+  Every Erlang message received in form of `Membrane.WebRTC.Server.Message` (i.e. messages about peers joining/leaving room, ICE candidates from other peers) will be encoded into JSON and passed to client via `{:reply, {:text, json}, state}`.
   """
 
   @behaviour :cowboy_websocket
@@ -22,7 +22,7 @@ defmodule Membrane.WebRTC.Server.Peer do
   @doc """
   Callback invoked before initialization of WebSocket.
   Peer will later join (or create and join) room with name returned by callback.
-  Returning `{:error, reason}` will cause aborting initialization of WebSocket and returning reply with 403 status code and the same request as given.
+  Returning `{:error, reason}` will cause aborting initialization of WebSocket and returning reply with 401 status code and the same request as given.
   """
   @callback authenticate(request :: :cowboy_req.req(), options :: any) ::
               {:ok, %{room: String.t(), state: internal_state}}
@@ -94,14 +94,14 @@ defmodule Membrane.WebRTC.Server.Peer do
 
       {:error, reason} ->
         Logger.error("Authentication error, reason: #{inspect(reason)}")
-        request = :cowboy_req.reply(403, request)
+        request = :cowboy_req.reply(401, request)
         {:ok, request, %{}}
     end
   end
 
   @impl true
   def websocket_init(%State{room: room, peer_id: peer_id} = state) do
-    room_pid = get_room_pid(room, state)
+    room_pid = get_room_pid!(room, state)
     Room.join(room_pid, peer_id, self())
     Process.monitor(room_pid)
     callback_exec(state.module, :on_websocket_init, [], state)
@@ -183,8 +183,10 @@ defmodule Membrane.WebRTC.Server.Peer do
   end
 
   defp callback_exec(module, :authenticate, args, options) do
-    case apply(module, :authenticate, args ++ [options.custom_options]) do
-      {:ok, room: room} -> {:ok, %{room: room, state: nil}}
+    with {:ok, room: room} <-
+           apply(module, :authenticate, args ++ [options.custom_options]) do
+      {:ok, %{room: room, state: nil}}
+    else
       result -> result
     end
   end
@@ -197,7 +199,7 @@ defmodule Membrane.WebRTC.Server.Peer do
         {:ok, %State{state | internal_state: internal_state}}
 
       {:ok, %Message{} = message, internal_state} ->
-        room_pid = get_room_pid(state.room, state)
+        room_pid = get_room_pid!(state.room, state)
         Room.send_message(room_pid, message)
         {:ok, %State{state | internal_state: internal_state}}
     end
@@ -209,10 +211,14 @@ defmodule Membrane.WebRTC.Server.Peer do
   end
 
   defp handle_message(
-         {:ok, %{"data" => data, "event" => event, "to" => to}},
+         {:ok, %{"event" => _event} = message},
          %State{module: module, peer_id: peer_id} = state
        ) do
-    message = %Message{data: data, event: event, from: peer_id, to: to}
+    message =
+      Bunch.Map.map_keys(message, fn string -> String.to_atom(string) end)
+      |> Map.put(:from, peer_id)
+
+    message = struct(Message, message)
     callback_exec(module, :on_message, [message], state)
   end
 
@@ -237,14 +243,26 @@ defmodule Membrane.WebRTC.Server.Peer do
     peer_id
   end
 
+  defp get_room_pid!(room, state) do
+    case get_room_pid(room, state) do
+      {:ok, pid} when is_pid(pid) -> pid
+      {:ok, not_a_pid} -> raise "Expected {:ok, pid}, got #{inspect({:ok, not_a_pid})} instead"
+      {:error, tuple} when is_tuple(tuple) -> raise inspect(tuple)
+      {:error, error} -> raise error
+      {:error, error, message} -> raise error, message
+    end
+  end
+
   defp get_room_pid(room, %State{room_module: room_module}) do
     case Registry.lookup(Server.Registry, room) do
       [{room_pid, :room}] when is_pid(room_pid) ->
-        room_pid
+        {:ok, room_pid}
 
       [] ->
-        {:ok, room_pid} = Room.create(room, room_module)
-        room_pid
+        Room.create(room, room_module)
+
+      match ->
+        {:error, MatchError, term: match}
     end
   end
 

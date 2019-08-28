@@ -3,6 +3,7 @@ defmodule Example.Application do
   use Application
   alias Membrane.WebRTC.Server.Peer.Options
 
+  @impl true
   def start(_type, _args) do
     children = [
       Plug.Cowboy.child_spec(
@@ -26,6 +27,7 @@ defmodule Example.Application do
     Supervisor.start_link(children, opts)
   end
 
+  @impl true
   def stop(_state) do
     :ok
   end
