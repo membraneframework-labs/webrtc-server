@@ -192,8 +192,7 @@ defmodule Membrane.WebRTC.Server.IntegrationTest do
   def generate_pid(number, real) do
     case real do
       true ->
-        task = Task.async(fn -> :ok end)
-        task.pid
+        spawn(fn -> :ok end)
 
       false ->
         IEx.Helpers.pid(0, number, 0)

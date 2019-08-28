@@ -12,13 +12,12 @@ defmodule Example.Application do
         plug: Example.Router,
         options: [
           dispatch: dispatch(),
-          port: 8443,
-          ip: {0, 0, 0, 0},
-          password: "SECRET",
+          port: Application.fetch_env!(:example, :port),
+          ip: Application.fetch_env!(:example, :ip),
+          password: Application.fetch_env!(:example, :password),
           otp_app: :example,
-          # Attach your SSL certificate and key files here
-          keyfile: "priv/certs/key.pem",
-          certfile: "priv/certs/certificate.pem"
+          keyfile: Application.fetch_env!(:example, :keyfile),
+          certfile: Application.fetch_env!(:example, :certfile)
         ]
       )
     ]
