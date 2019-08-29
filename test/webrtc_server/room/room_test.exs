@@ -1,15 +1,11 @@
 defmodule Membrane.WebRTC.Server.RoomTest do
   use ExUnit.Case, async: true
 
-  alias Membrane.WebRTC.Server.{Room.State, Message}
+  alias Membrane.WebRTC.Server.{Room.State, Message, Support.MockRoom}
 
   @module Membrane.WebRTC.Server.Room
 
-  defmodule MockModule do
-    use Membrane.WebRTC.Server.Room
-  end
-
-  describe "handle_info:" do
+  describe "handle_info" do
     test "should remove peer" do
       assert @module.handle_info({:leave, "peer_2"}, state(2)) == {:noreply, state(1)}
     end
@@ -44,7 +40,7 @@ defmodule Membrane.WebRTC.Server.RoomTest do
 
     test "should replace already existing peer" do
       pid = generate_pid(5, true)
-      state = %State{peers: BiMap.new(%{"peer_1" => pid}), module: MockModule}
+      state = %State{peers: BiMap.new(%{"peer_1" => pid}), module: MockRoom}
       assert @module.handle_info({:join, "peer_1", pid}, state(1)) == {:noreply, state}
     end
 
@@ -79,14 +75,14 @@ defmodule Membrane.WebRTC.Server.RoomTest do
 
   describe "init" do
     test "registry itself" do
-      {:ok, pid} = @module.start_link(%{name: "name", module: MockModule})
+      {:ok, pid} = @module.start_link(%{name: "name", module: MockRoom})
       assert Registry.lookup(Server.Registry, "name") == [{pid, :room}]
     end
   end
 
   describe "terminate" do
     test "should receive process termination message after last peer leave" do
-      assert {:ok, room_pid} = @module.create("room", MockModule)
+      assert {:ok, room_pid} = @module.create("room", MockRoom)
       Process.monitor(room_pid)
       @module.join(room_pid, "peer_id", generate_pid(0, false))
       @module.leave(room_pid, "peer_id")
@@ -97,8 +93,8 @@ defmodule Membrane.WebRTC.Server.RoomTest do
       Application.start(:logger)
       Logger.configure(level: :error)
 
-      assert {:ok, room_pid} = @module.create("room", MockModule)
-      assert {:ok, mock_pid} = @module.start_link(%{name: "mock", module: MockModule})
+      assert {:ok, room_pid} = @module.create("room", MockRoom)
+      assert {:ok, mock_pid} = @module.start_link(%{name: "mock", module: MockRoom})
       @module.join(room_pid, "peer_id", generate_pid(0, false))
       @module.leave(room_pid, "peer_id")
       Process.sleep(20)
@@ -110,7 +106,7 @@ defmodule Membrane.WebRTC.Server.RoomTest do
   def state(number_of_peers, map \\ BiMap.new(), real \\ false) do
     case number_of_peers do
       0 ->
-        %State{peers: map, module: MockModule}
+        %State{peers: map, module: MockRoom}
 
       1 ->
         state(0, BiMap.put(map, "peer_1", self()))

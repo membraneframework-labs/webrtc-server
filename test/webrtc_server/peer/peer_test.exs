@@ -2,31 +2,17 @@ defmodule Membrane.WebRTC.Server.PeerTest do
   use ExUnit.Case, async: true
 
   alias Membrane.WebRTC.Server.Message
-  alias Membrane.WebRTC.Server.{Peer, Peer.State, Peer.Options}
+
+  alias Membrane.WebRTC.Server.{
+    Peer,
+    Peer.State,
+    Peer.Options,
+    Support.MockPeer,
+    Support.ErrorPeer,
+    Support.CustomPeer
+  }
 
   @module Peer
-
-  defmodule MockPeer do
-    use Peer
-  end
-
-  defmodule CustomPeer do
-    use Peer
-
-    @impl true
-    def on_init(req, _ctx, _state) do
-      {:cowboy_websocket, req, :custom_internal_state, %{idle_timeout: 20}}
-    end
-  end
-
-  defmodule ErrorPeer do
-    use Peer
-
-    @impl true
-    def authenticate(_req, _options) do
-      {:error, :this_is_supposed_to_fail}
-    end
-  end
 
   setup_all do
     Application.start(:logger)

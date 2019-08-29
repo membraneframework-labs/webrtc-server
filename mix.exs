@@ -10,6 +10,7 @@ defmodule Membrane.WebRTC.Server.MixProject do
       name: "WebRTC Server",
       version: @version,
       elixir: "~> 1.9",
+      elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
       deps: deps(),
       source_url: @github_url,
@@ -51,4 +52,7 @@ defmodule Membrane.WebRTC.Server.MixProject do
       extra_applications: []
     ]
   end
+
+  defp elixirc_paths(:test), do: ["lib", "test"]
+  defp elixirc_paths(_env), do: ["lib"]
 end

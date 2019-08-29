@@ -1,44 +1,19 @@
 defmodule Membrane.WebRTC.Server.IntegrationTest do
   use ExUnit.Case, async: false
-  alias Membrane.WebRTC.Server.{Peer, Room, Peer.State, Message}
+
+  alias Membrane.WebRTC.Server.{
+    Message,
+    Peer,
+    Peer.State,
+    Room,
+    Support.CustomPeer,
+    Support.MockPeer
+  }
 
   @module Membrane.WebRTC.Server.Peer
 
-  defmodule MockPeer do
-    use Peer
-  end
-
-  defmodule CustomPeer do
-    use Peer
-
-    @impl true
-    def on_websocket_init(_ctx, _state) do
-      state = %{a: :a}
-      {:ok, state, :hibernate}
-    end
-
-    @impl true
-    def on_message(%Message{event: "modify"} = message, _ctx, state) do
-      message = %Message{message | data: message.data <> "b"}
-      {:ok, message, state}
-    end
-
-    @impl true
-    def on_message(%Message{event: "ignore"}, _ctx, state) do
-      {:ok, state}
-    end
-
-    def on_message(%Message{event: "just send it"} = message, _ctx, state) do
-      {:ok, message, state}
-    end
-
-    def on_message(%Message{event: "change state", data: new_state} = message, _ctx, _state) do
-      {:ok, message, new_state}
-    end
-  end
-
   setup_all do
-    Application.start(:debug)
+    Application.start(:logger)
     Registry.start_link(keys: :unique, name: Server.Registry)
     Logger.configure(level: :error)
   end
