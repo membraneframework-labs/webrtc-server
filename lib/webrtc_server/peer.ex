@@ -2,7 +2,7 @@ defmodule Membrane.WebRTC.Server.Peer do
   @moduledoc """
   Implementation of [`Cowboy WebSocket`](https://ninenines.eu/docs/en/cowboy/2.6/manual/cowboy_websocket/).
 
-  Module prepared to perform authentication, initialize WebSocket, exchange JSON messages with client and other peers, join, create and monitor Rooms.
+  Module prepared to authenticate, initialize WebSocket, exchange JSON messages with client and other peers, join, create and monitor Rooms.
 
   Every message received from client (via `websocket_handle({:text, message}, state)`) must be JSON equivalent of `Membrane.WebRTC.Server.Message` struct. 
 
