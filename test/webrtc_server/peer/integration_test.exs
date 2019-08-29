@@ -53,7 +53,7 @@ defmodule Membrane.WebRTC.Server.IntegrationTest do
       assert [{room_pid, :room}] = Registry.lookup(Server.Registry, "room")
       assert is_pid(room_pid)
       assert Process.alive?(room_pid)
-      assert Room.send_message(room_pid, %Message{event: :ping, to: "test_peer"}) == :ok
+      assert Room.send_message(room_pid, %Message{event: "ping", to: "test_peer"}) == :ok
     end
 
     test "with room that does not exists should cause creating room", ctx do
@@ -65,7 +65,7 @@ defmodule Membrane.WebRTC.Server.IntegrationTest do
       assert [{room_pid, :room}] = Registry.lookup(Server.Registry, "non-existant-room")
       assert is_pid(room_pid)
       assert Process.alive?(room_pid)
-      assert Room.send_message(room_pid, %Message{event: :ping, to: "test_peer"}) == :ok
+      assert Room.send_message(room_pid, %Message{event: "ping", to: "test_peer"}) == :ok
     end
   end
 
@@ -131,7 +131,7 @@ defmodule Membrane.WebRTC.Server.IntegrationTest do
   describe "handle terminate" do
     test "should return :ok and receive message about leaving room by peer_10", ctx do
       assert @module.terminate(:normal, %{}, ctx.peer_state) == :ok
-      assert_receive %Message{data: %{peer_id: "peer10"}, event: :left}
+      assert_receive %Message{data: %{peer_id: "peer10"}, event: "left"}
     end
   end
 

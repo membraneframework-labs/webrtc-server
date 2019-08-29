@@ -57,14 +57,14 @@ defmodule Membrane.WebRTC.Server.RoomTest do
 
   describe "handle_call: " do
     test "should receive sent ping" do
-      ping_message = %Message{event: :ping, to: "peer_1"}
+      ping_message = %Message{event: "ping", to: "peer_1"}
       @module.handle_call({:send, ping_message}, self(), state(5, BiMap.new(), true))
       assert_received ping_message
     end
 
     test "should not return :ok nor receive ping if peer not exists" do
       new_state = state(5, BiMap.new(), true)
-      ping_message = %Message{event: :ping, to: "peer_-1"}
+      ping_message = %Message{event: "ping", to: "peer_-1"}
 
       refute @module.handle_call({:send, ping_message}, self(), new_state) ==
                {:reply, :ok, new_state}

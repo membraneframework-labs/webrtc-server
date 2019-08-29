@@ -58,11 +58,8 @@ dkms.conf
 
 ### Elixir ###
 /_build
-/example/_build
 /cover
 /deps
-/example/deps
-/example/priv
 /doc
 /.fetch
 erl_crash.dump

@@ -19,6 +19,17 @@ defmodule Membrane.WebRTC.Server.Peer do
   """
   @type internal_state :: any
 
+  @typedoc """
+  """
+  @type terminate_reason ::
+          :normal
+          | :stop
+          | :timeout
+          | :remote
+          | {:remote, :cow_ws.close_code(), binary()}
+          | {:error, :badencoding | :badframe | :closed | atom()}
+          | {:crash, :error | :exit | :throw, any()}
+
   @doc """
   Callback invoked before initialization of WebSocket.
   Peer will later join (or create and join) room with name returned by callback.
@@ -67,7 +78,7 @@ defmodule Membrane.WebRTC.Server.Peer do
   Useful for any cleanup required.
   """
   @callback on_terminate(
-              reason :: :cowboy_websocket.reason(),
+              reason :: terminate_reason,
               partial_req :: :cowboy_req.req(),
               context :: Context.t(),
               state :: internal_state
@@ -138,7 +149,7 @@ defmodule Membrane.WebRTC.Server.Peer do
 
   @impl true
   def websocket_info({:DOWN, _reference, :process, _pid, reason}, state) do
-    message = %Message{event: :room_closed, data: %{reason: reason}}
+    message = %Message{event: "room_closed", data: %{reason: reason}}
     send(self(), message)
     {:stop, state}
   end
@@ -246,7 +257,7 @@ defmodule Membrane.WebRTC.Server.Peer do
   defp get_room_pid!(room, state) do
     case get_room_pid(room, state) do
       {:ok, pid} when is_pid(pid) -> pid
-      {:ok, not_a_pid} -> raise "Expected {:ok, pid}, got #{inspect({:ok, not_a_pid})} instead"
+      {:ok, pid, _info} when is_pid(pid) -> pid
       {:error, tuple} when is_tuple(tuple) -> raise inspect(tuple)
       {:error, error} -> raise error
       {:error, error, message} -> raise error, message

@@ -82,7 +82,7 @@ defmodule Membrane.WebRTC.Server.PeerTest do
 
   describe "handle info" do
     test "should reply with same message", ctx do
-      message = %Message{event: :ok, data: "same"}
+      message = %Message{event: "ok", data: "same"}
       {:ok, encoded} = message |> Map.from_struct() |> Jason.encode()
 
       assert @module.websocket_info(message, ctx.state) ==
@@ -97,7 +97,7 @@ defmodule Membrane.WebRTC.Server.PeerTest do
     test "with DOWN message should receive message about roon closing", ctx do
       message = {:DOWN, make_ref(), :process, self(), :exit_reason}
       @module.websocket_info(message, ctx.state)
-      assert_receive %Message{event: :room_closed, data: %{reason: :exit_reason}}
+      assert_receive %Message{event: "room_closed", data: %{reason: :exit_reason}}
     end
   end
 end

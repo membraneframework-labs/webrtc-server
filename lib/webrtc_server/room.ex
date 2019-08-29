@@ -31,7 +31,7 @@ defmodule Membrane.WebRTC.Server.Room do
     defstruct [:internal_state] ++ @enforce_keys
 
     @type t :: %__MODULE__{
-            peers: BiMap.t() | BiMap.new(),
+            peers: BiMap.t() | %BiMap{},
             module: module(),
             internal_state: Membrane.WebRTC.Server.Room.internal_state()
           }
@@ -101,7 +101,7 @@ defmodule Membrane.WebRTC.Server.Room do
 
   @spec join(room :: pid(), peer_id :: peer_id, peer_pid :: pid()) :: :ok
   def join(room, peer_id, peer_pid) do
-    message = %Message{event: :joined, data: %{peer_id: peer_id}}
+    message = %Message{event: "joined", data: %{peer_id: peer_id}}
     broadcast(room, message)
     send(room, {:join, peer_id, peer_pid})
     :ok
@@ -112,7 +112,7 @@ defmodule Membrane.WebRTC.Server.Room do
   """
   @spec leave(room :: pid(), peer_id :: peer_id) :: :ok
   def leave(room, peer_id) do
-    message = %Message{event: :left, data: %{peer_id: peer_id}}
+    message = %Message{event: "left", data: %{peer_id: peer_id}}
     send(room, {:leave, peer_id})
     broadcast(room, message)
   end
