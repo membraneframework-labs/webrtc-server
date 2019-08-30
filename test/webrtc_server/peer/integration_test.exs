@@ -1,14 +1,9 @@
 defmodule Membrane.WebRTC.Server.IntegrationTest do
   use ExUnit.Case, async: false
 
-  alias Membrane.WebRTC.Server.{
-    Message,
-    Peer,
-    Peer.State,
-    Room,
-    Support.CustomPeer,
-    Support.MockPeer
-  }
+  alias Membrane.WebRTC.Server.{Message, Peer, Room}
+  alias Membrane.WebRTC.Server.Peer.State
+  alias Membrane.WebRTC.Server.{Support.CustomPeer, Support.MockPeer}
 
   @module Membrane.WebRTC.Server.Peer
 
@@ -143,11 +138,10 @@ defmodule Membrane.WebRTC.Server.IntegrationTest do
 
     2..n
     |> Enum.map(fn num ->
-      Room.join(
-        room,
-        "peer" <> to_string(num),
-        generate_pid(num, real)
-      )
+      with peer_id <- "peer" <> to_string(num),
+           pid <- generate_pid(num, real) do
+        Room.join(room, peer_id, pid)
+      end
     end)
   end
 

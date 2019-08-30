@@ -1,4 +1,6 @@
 defmodule Example.Peer do
+  @moduledoc false
+
   use Membrane.WebRTC.Server.Peer
   require Logger
 
@@ -6,7 +8,7 @@ defmodule Example.Peer do
   def authenticate(request, options) do
     room = :cowboy_req.binding(:room, request)
 
-    if room == "undefined" do
+    if room == :undefined do
       {:error, :no_room_bound_in_url}
     else
       state = %{username: "user_#{Integer.to_string(:rand.uniform(1_000_000))}", options: options}

@@ -2,15 +2,9 @@ defmodule Membrane.WebRTC.Server.PeerTest do
   use ExUnit.Case, async: true
 
   alias Membrane.WebRTC.Server.Message
-
-  alias Membrane.WebRTC.Server.{
-    Peer,
-    Peer.State,
-    Peer.Options,
-    Support.MockPeer,
-    Support.ErrorPeer,
-    Support.CustomPeer
-  }
+  alias Membrane.WebRTC.Server.Peer
+  alias Membrane.WebRTC.Server.{Peer.Options, Peer.State}
+  alias Membrane.WebRTC.Server.{Support.CustomPeer, Support.ErrorPeer, Support.MockPeer}
 
   @module Peer
 

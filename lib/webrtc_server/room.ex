@@ -1,6 +1,7 @@
 defmodule Membrane.WebRTC.Server.Room do
   @moduledoc """
-  Module containing functions for constructing rooms, adding or removing peers to them or sending and broadcasting messages between peers. 
+  Module containing functions for constructing rooms, adding or removing peers to them
+  or sending and broadcasting messages between peers. 
 
   Room is `GenServer` prepared to send messages between peers by storing their IDs and PIDs.
   """
@@ -39,14 +40,21 @@ defmodule Membrane.WebRTC.Server.Room do
 
   @doc """
   Callback invoked when room is created.
+
   Internally called in `c:init/1` callback.
+
+  This callback is optional.
   """
   @callback on_init(args :: room_options) :: {:ok, internal_state}
 
   @doc """
   Callback invoked before sending message.
-  Room will send message returned by this callback, ergo returning `{:ok, state}` will cause ignoring message.
+  Room will send message returned by this callback, ergo returning `{:ok, state}`
+  will cause ignoring message.
+
   Useful for modyfing or ignoring messages.
+
+  This callback is optional.
   """
   @callback on_message(
               message :: Message.t(),
@@ -55,8 +63,12 @@ defmodule Membrane.WebRTC.Server.Room do
 
   @doc """
   Callback invoked before broadcasting message.
-  Room will broadcast message returned by this callback, ergo returning `{:ok, state}` will cause ignoring message.
+  Room will broadcast message returned by this callback, ergo returning `{:ok, state}`
+  will cause ignoring message.
+
   Useful for modyfing or ignoring messages.
+
+  This callback is optional.
   """
   @callback on_broadcast(
               message :: Message.t(),
@@ -69,6 +81,8 @@ defmodule Membrane.WebRTC.Server.Room do
   Callback invoked when room is shutting down.
   Internally called in `c:GenServer.terminate/2` callback.
   Useful for any cleanup required.
+
+  This callback is optional.
   """
   @callback on_terminate(
               reason :: :normal | :shutdown | {:shutdown, any},
@@ -76,7 +90,8 @@ defmodule Membrane.WebRTC.Server.Room do
             ) :: :ok
 
   @doc """
-  Starts Room based on given module, registers it in Server.Registry (under given name and value: `:room`) and links it to current process.
+  Starts Room based on given module, registers it in Server.Registry
+  (under given name and value: `:room`) and links it to current process.
 
   Args are passed to module's `c:on_init/1` callback.
   """
@@ -96,7 +111,8 @@ defmodule Membrane.WebRTC.Server.Room do
   end
 
   @doc """
-  Adds the peer to the room. Broadcasts message (`%Message{event: joined, data: %{peer_id: peer_id}}`) to other peers in room. 
+  Adds the peer to the room. Broadcasts message
+  (`%Message{event: joined, data: %{peer_id: peer_id}}`) to other peers in room. 
   """
 
   @spec join(room :: pid(), peer_id :: peer_id, peer_pid :: pid()) :: :ok
@@ -108,7 +124,8 @@ defmodule Membrane.WebRTC.Server.Room do
   end
 
   @doc """
-  Removes the peer from the room. Broadcast message (`%Message{event: left, data: %{peer_id: peer_id}}`) to other peers in room. 
+  Removes the peer from the room. Broadcast message
+  (`%Message{event: left, data: %{peer_id: peer_id}}`) to other peers in room. 
   """
   @spec leave(room :: pid(), peer_id :: peer_id) :: :ok
   def leave(room, peer_id) do

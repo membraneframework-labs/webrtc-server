@@ -1,4 +1,6 @@
 defmodule Membrane.WebRTC.Server.Support.CustomPeer do
+  @moduledoc false
+
   use Membrane.WebRTC.Server.Peer
 
   alias Membrane.WebRTC.Server.Message

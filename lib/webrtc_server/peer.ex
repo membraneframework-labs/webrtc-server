@@ -1,12 +1,17 @@
 defmodule Membrane.WebRTC.Server.Peer do
   @moduledoc """
-  Implementation of [`Cowboy WebSocket`](https://ninenines.eu/docs/en/cowboy/2.6/manual/cowboy_websocket/).
+  Module prepared to initialize WebSocket, exchange JSON messages with client, 
+  join and monitor Rooms.
 
-  Module prepared to authenticate, initialize WebSocket, exchange JSON messages with client and other peers, join, create and monitor Rooms.
+  Every message received from client must be JSON equivalent
+  of `Membrane.WebRTC.Server.Message` struct. 
 
-  Every message received from client (via `websocket_handle({:text, message}, state)`) must be JSON equivalent of `Membrane.WebRTC.Server.Message` struct. 
+  Every Erlang message received in form of `%Membrane.WebRTC.Server.Message{}`
+  (i.e. messages about peers joining/leaving room, ICE candidates from other peers)
+  will be encoded into JSON and passed to client.
 
-  Every Erlang message received in form of `Membrane.WebRTC.Server.Message` (i.e. messages about peers joining/leaving room, ICE candidates from other peers) will be encoded into JSON and passed to client via `{:reply, {:text, json}, state}`.
+  Implementation of 
+  [`Cowboy WebSocket`](https://ninenines.eu/docs/en/cowboy/2.6/manual/cowboy_websocket/).
   """
 
   @behaviour :cowboy_websocket
@@ -20,6 +25,7 @@ defmodule Membrane.WebRTC.Server.Peer do
   @type internal_state :: any
 
   @typedoc """
+  Defines possible termination reasons passed to `c:terminate/2` callback.
   """
   @type terminate_reason ::
           :normal
@@ -33,7 +39,10 @@ defmodule Membrane.WebRTC.Server.Peer do
   @doc """
   Callback invoked before initialization of WebSocket.
   Peer will later join (or create and join) room with name returned by callback.
-  Returning `{:error, reason}` will cause aborting initialization of WebSocket and returning reply with 401 status code and the same request as given.
+  Returning `{:error, reason}` will cause aborting initialization of WebSocket
+  and returning reply with 401 status code and the same request as given.
+
+  This callback is optional.
   """
   @callback authenticate(request :: :cowboy_req.req(), options :: any) ::
               {:ok, %{room: String.t(), state: internal_state}}
@@ -43,6 +52,8 @@ defmodule Membrane.WebRTC.Server.Peer do
   @doc """
   Callback invoked before initialization of WebSocket, after successful authentication.
   Useful for setting custom Cowboy WebSocket options, like timeout or maximal frame size.
+
+  This callback is optional.
   """
   @callback on_init(
               request :: :cowboy_req.req(),
@@ -54,7 +65,10 @@ defmodule Membrane.WebRTC.Server.Peer do
 
   @doc """
   Callback invoked after initialization of WebSocket.
-  Useful for setting up internal state or informing client about successful authentication and initialization. 
+  Useful for setting up internal state or informing client about successful authentication
+  and initialization. 
+
+  This callback is optional.
   """
   @callback on_websocket_init(context :: Context.t(), state :: internal_state) ::
               {:ok, internal_state}
@@ -64,9 +78,12 @@ defmodule Membrane.WebRTC.Server.Peer do
               | {:stop, internal_state}
 
   @doc """
-  Callback invoked after successful decoding JSON message received via `websocket_handle({:test, message}, state)`.
-  Peer will proceed to send message returned by this callback to Room, ergo returning `{:ok, state}` will cause ignoring message.
+  Callback invoked after successful decoding received JSON message.
+  Peer will proceed to send message returned by this callback to Room,
+  ergo returning `{:ok, state}` will cause ignoring message.
   Useful for modyfing or ignoring messages.
+
+  This callback is optional.
   """
   @callback on_message(message :: Message.t(), context :: Context.t(), state :: internal_state) ::
               {:ok, Message.t(), internal_state}
@@ -76,6 +93,8 @@ defmodule Membrane.WebRTC.Server.Peer do
   Callback invoked when peer is shutting down.
   Internally called in `:cowboy_websocket.terminate/3` callback.
   Useful for any cleanup required.
+
+  This callback is optional.
   """
   @callback on_terminate(
               reason :: terminate_reason,
@@ -197,8 +216,6 @@ defmodule Membrane.WebRTC.Server.Peer do
     with {:ok, room: room} <-
            apply(module, :authenticate, args ++ [options.custom_options]) do
       {:ok, %{room: room, state: nil}}
-    else
-      result -> result
     end
   end
 
@@ -226,7 +243,8 @@ defmodule Membrane.WebRTC.Server.Peer do
          %State{module: module, peer_id: peer_id} = state
        ) do
     message =
-      Bunch.Map.map_keys(message, fn string -> String.to_atom(string) end)
+      message
+      |> Bunch.Map.map_keys(fn string -> String.to_atom(string) end)
       |> Map.put(:from, peer_id)
 
     message = struct(Message, message)
@@ -249,7 +267,7 @@ defmodule Membrane.WebRTC.Server.Peer do
     {:ok, state}
   end
 
-  defp make_peer_id() do
+  defp make_peer_id do
     "#Reference" <> peer_id = Kernel.inspect(Kernel.make_ref())
     peer_id
   end
