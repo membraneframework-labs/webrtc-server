@@ -3,7 +3,7 @@ defmodule Membrane.WebRTC.Server.IntegrationTest do
 
   alias Membrane.WebRTC.Server.{Message, Peer, Room}
   alias Membrane.WebRTC.Server.Peer.State
-  alias Membrane.WebRTC.Server.{Support.CustomPeer, Support.MockPeer}
+  alias Membrane.WebRTC.Server.{Support.CustomPeer, Support.MockPeer, Support.RoomHelper}
 
   @module Membrane.WebRTC.Server.Peer
 
@@ -139,7 +139,7 @@ defmodule Membrane.WebRTC.Server.IntegrationTest do
     2..n
     |> Enum.map(fn num ->
       with peer_id <- "peer" <> to_string(num),
-           pid <- generate_pid(num, real) do
+           pid <- RoomHelper.generate_pid(num, real) do
         Room.join(room, peer_id, pid)
       end
     end)
@@ -152,19 +152,9 @@ defmodule Membrane.WebRTC.Server.IntegrationTest do
 
       n ->
         peer = "peer_" <> to_string(n)
-        pid = generate_pid(n, real)
+        pid = RoomHelper.generate_pid(n, real)
         Room.join(room, peer, pid)
         insert_peers(n - 1, room, real)
-    end
-  end
-
-  def generate_pid(number, real) do
-    case real do
-      true ->
-        spawn(fn -> :ok end)
-
-      false ->
-        IEx.Helpers.pid(0, number, 0)
     end
   end
 end

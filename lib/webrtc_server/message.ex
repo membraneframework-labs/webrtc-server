@@ -2,6 +2,9 @@ defmodule Membrane.WebRTC.Server.Message do
   @moduledoc """
   Struct defining messages exchanged between peers and rooms.
   """
+
+  @derive Jason.Encoder
+
   @enforce_keys [:event]
   defstruct @enforce_keys ++ [:data, :from, :to]
 

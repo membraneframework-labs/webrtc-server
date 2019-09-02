@@ -3,7 +3,7 @@ defmodule Membrane.WebRTC.Server.RoomTest do
 
   alias Membrane.WebRTC.Server.Message
   alias Membrane.WebRTC.Server.Room.State
-  alias Membrane.WebRTC.Server.Support.MockRoom
+  alias Membrane.WebRTC.Server.Support.{MockRoom, RoomHelper}
 
   @module Membrane.WebRTC.Server.Room
 
@@ -41,7 +41,7 @@ defmodule Membrane.WebRTC.Server.RoomTest do
     end
 
     test "should replace already existing peer" do
-      pid = generate_pid(5, true)
+      pid = RoomHelper.generate_pid(5, true)
       state = %State{peers: BiMap.new(%{"peer_1" => pid}), module: MockRoom}
       assert @module.handle_info({:join, "peer_1", pid}, state(1)) == {:noreply, state}
     end
@@ -86,7 +86,7 @@ defmodule Membrane.WebRTC.Server.RoomTest do
     test "should receive process termination message after last peer leave" do
       assert {:ok, room_pid} = @module.create("room", MockRoom)
       Process.monitor(room_pid)
-      @module.join(room_pid, "peer_id", generate_pid(0, false))
+      @module.join(room_pid, "peer_id", RoomHelper.generate_pid(0, false))
       @module.leave(room_pid, "peer_id")
       assert_receive({:DOWN, _reference, :process, ^room_pid, _reason})
     end
@@ -97,7 +97,7 @@ defmodule Membrane.WebRTC.Server.RoomTest do
 
       assert {:ok, room_pid} = @module.create("room", MockRoom)
       assert {:ok, mock_pid} = @module.start_link(%{name: "mock", module: MockRoom})
-      @module.join(room_pid, "peer_id", generate_pid(0, false))
+      @module.join(room_pid, "peer_id", RoomHelper.generate_pid(0, false))
       @module.leave(room_pid, "peer_id")
       Process.sleep(20)
       assert Registry.lookup(Server.Registry, "mock") == [{mock_pid, :room}]
@@ -115,18 +115,8 @@ defmodule Membrane.WebRTC.Server.RoomTest do
 
       n ->
         name = "peer_" <> to_string(n)
-        pid = generate_pid(n, real)
+        pid = RoomHelper.generate_pid(n, real)
         state(n - 1, BiMap.put(map, name, pid))
-    end
-  end
-
-  def generate_pid(number, real) do
-    case real do
-      true ->
-        spawn(fn -> :ok end)
-
-      false ->
-        IEx.Helpers.pid(0, number, 0)
     end
   end
 end

@@ -1,10 +1,9 @@
 defmodule Membrane.WebRTC.Server.Peer do
   @moduledoc """
-  Module prepared to initialize WebSocket, exchange JSON messages with client, 
-  join and monitor Rooms.
+  Module that manages websocket lifecycle and communication with client.
 
-  Every message received from client must be JSON equivalent
-  of `Membrane.WebRTC.Server.Message` struct. 
+  Every message received from client must be JSON matching 
+  `Membrane.WebRTC.Server.Message` struct. 
 
   Every Erlang message received in form of `%Membrane.WebRTC.Server.Message{}`
   (i.e. messages about peers joining/leaving room, ICE candidates from other peers)
@@ -110,17 +109,17 @@ defmodule Membrane.WebRTC.Server.Peer do
 
   @impl true
   def init(request, %Options{module: module, room_module: room_module} = options) do
-    case callback_exec(module, :authenticate, [request], options) do
+    case callback_exec(:authenticate, [request], options) do
       {:ok, %{room: room, state: internal_state}} ->
         state = %State{
           room: room,
-          peer_id: make_peer_id(),
+          peer_id: UUID.uuid1(),
           module: module,
           internal_state: internal_state,
           room_module: room_module
         }
 
-        callback_exec(module, :on_init, [request], state)
+        callback_exec(:on_init, [request], state)
 
       {:error, reason} ->
         Logger.error("Authentication error, reason: #{inspect(reason)}")
@@ -134,7 +133,7 @@ defmodule Membrane.WebRTC.Server.Peer do
     room_pid = get_room_pid!(room, state)
     Room.join(room_pid, peer_id, self())
     Process.monitor(room_pid)
-    callback_exec(state.module, :on_websocket_init, [], state)
+    callback_exec(:on_websocket_init, [], state)
   end
 
   @impl true
@@ -162,7 +161,7 @@ defmodule Membrane.WebRTC.Server.Peer do
 
   @impl true
   def websocket_info(%Message{} = message, state) do
-    encoded = message |> Map.from_struct() |> Jason.encode!()
+    encoded = message |> Jason.encode!()
     {:reply, {:text, encoded}, state}
   end
 
@@ -176,13 +175,17 @@ defmodule Membrane.WebRTC.Server.Peer do
   @impl true
   def terminate(reason, req, %State{peer_id: peer_id} = state) do
     Logger.info("Terminating peer #{peer_id}")
-    callback_exec(state.module, :on_terminate, [reason, req], state)
+    callback_exec(:on_terminate, [reason, req], state)
   end
 
-  defp callback_exec(module, :on_init, [request], state) do
-    args = prepare_args(state, [request])
+  defp callback_exec(:authenticate, args, options) do
+    with {:ok, room: room} <- apply_callback(:authenticate, args, options) do
+      {:ok, %{room: room, state: nil}}
+    end
+  end
 
-    case apply(module, :on_init, args) do
+  defp callback_exec(:on_init, [request], state) do
+    case apply_callback(:on_init, [request], state) do
       {:cowboy_websocket, request, internal_state} ->
         {:cowboy_websocket, request, %State{state | internal_state: internal_state}}
 
@@ -191,10 +194,8 @@ defmodule Membrane.WebRTC.Server.Peer do
     end
   end
 
-  defp callback_exec(module, :on_websocket_init, [], state) do
-    args = prepare_args(state)
-
-    case apply(module, :on_websocket_init, args) do
+  defp callback_exec(:on_websocket_init, [], state) do
+    case apply_callback(:on_websocket_init, [], state) do
       {:ok, internal_state} ->
         {:ok, %State{state | internal_state: internal_state}}
 
@@ -212,17 +213,8 @@ defmodule Membrane.WebRTC.Server.Peer do
     end
   end
 
-  defp callback_exec(module, :authenticate, args, options) do
-    with {:ok, room: room} <-
-           apply(module, :authenticate, args ++ [options.custom_options]) do
-      {:ok, %{room: room, state: nil}}
-    end
-  end
-
-  defp callback_exec(module, :on_message, [message], state) do
-    args = prepare_args(state, [message])
-
-    case apply(module, :on_message, args) do
+  defp callback_exec(:on_message, [message], state) do
+    case apply_callback(:on_message, [message], state) do
       {:ok, internal_state} ->
         {:ok, %State{state | internal_state: internal_state}}
 
@@ -233,14 +225,23 @@ defmodule Membrane.WebRTC.Server.Peer do
     end
   end
 
-  defp callback_exec(module, :on_terminate, args, state) do
-    args = prepare_args(state, args)
-    apply(module, :on_terminate, args)
+  defp callback_exec(:on_terminate, args, state) do
+    apply_callback(:on_terminate, args, state)
+  end
+
+  defp apply_callback(:authenticate, args, options) do
+    args = args ++ [options.custom_options]
+    apply(options.module, :authenticate, args)
+  end
+
+  defp apply_callback(callback, args, state) do
+    args = args ++ [%Context{peer_id: state.peer_id, room: state.room}, state.internal_state]
+    apply(state.module, callback, args)
   end
 
   defp handle_message(
          {:ok, %{"event" => _event} = message},
-         %State{module: module, peer_id: peer_id} = state
+         %State{peer_id: peer_id} = state
        ) do
     message =
       message
@@ -248,7 +249,7 @@ defmodule Membrane.WebRTC.Server.Peer do
       |> Map.put(:from, peer_id)
 
     message = struct(Message, message)
-    callback_exec(module, :on_message, [message], state)
+    callback_exec(:on_message, [message], state)
   end
 
   defp handle_message({:ok, _message}, state) do
@@ -265,11 +266,6 @@ defmodule Membrane.WebRTC.Server.Peer do
     })
 
     {:ok, state}
-  end
-
-  defp make_peer_id do
-    "#Reference" <> peer_id = Kernel.inspect(Kernel.make_ref())
-    peer_id
   end
 
   defp get_room_pid!(room, state) do
@@ -294,9 +290,6 @@ defmodule Membrane.WebRTC.Server.Peer do
         {:error, MatchError, term: match}
     end
   end
-
-  defp prepare_args(state, args \\ []),
-    do: args ++ [%Context{peer_id: state.peer_id, room: state.room}, state.internal_state]
 
   defmacro __using__(_) do
     quote location: :keep do

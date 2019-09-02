@@ -52,8 +52,6 @@ defmodule Membrane.WebRTC.Server.Room do
   Room will send message returned by this callback, ergo returning `{:ok, state}`
   will cause ignoring message.
 
-  Useful for modyfing or ignoring messages.
-
   This callback is optional.
   """
   @callback on_message(
@@ -65,8 +63,6 @@ defmodule Membrane.WebRTC.Server.Room do
   Callback invoked before broadcasting message.
   Room will broadcast message returned by this callback, ergo returning `{:ok, state}`
   will cause ignoring message.
-
-  Useful for modyfing or ignoring messages.
 
   This callback is optional.
   """
