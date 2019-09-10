@@ -5,17 +5,13 @@ defmodule Membrane.WebRTC.Server.Peer do
   Every message received from client must be JSON matching 
   `Membrane.WebRTC.Server.Message` struct. 
 
-  Every Erlang message received in form of `%Membrane.WebRTC.Server.Message{}`
-  (i.e. messages about peers joining/leaving room, ICE candidates from other peers)
-  will be encoded into JSON and passed to client.
-
   Implementation of 
   [`Cowboy WebSocket`](https://ninenines.eu/docs/en/cowboy/2.6/manual/cowboy_websocket/).
   """
 
   @behaviour :cowboy_websocket
   require Logger
-  alias __MODULE__.{Context, Options, State}
+  alias __MODULE__.{AuthData, Context, Options, State}
   alias Membrane.WebRTC.Server.{Message, Room}
 
   @typedoc """
@@ -23,44 +19,50 @@ defmodule Membrane.WebRTC.Server.Peer do
   """
   @type internal_state :: any
 
-  @typedoc """
-  Defines possible termination reasons passed to `c:terminate/2` callback.
-  """
-  @type terminate_reason ::
-          :normal
-          | :stop
-          | :timeout
-          | :remote
-          | {:remote, :cow_ws.close_code(), binary()}
-          | {:error, :badencoding | :badframe | :closed | atom()}
-          | {:crash, :error | :exit | :throw, any()}
-
   @doc """
-  Callback invoked before initialization of WebSocket.
-  Peer will later join (or create and join) room with name returned by callback.
-  Returning `{:error, reason}` will cause aborting initialization of WebSocket
-  and returning reply with 401 status code and the same request as given.
+  Callback invoked to extract credentials and metadata from request.
+
+  Credentials and metadata will be used to create `AuthData` passed to
+  `c:authenticate/2` and `c:Room.authorize/2`.
+
+  Returning `{:error, details}` will cause aborting initialization of WebSocket
+  and returning reply with 400 status code and the same request as given.
 
   This callback is optional.
   """
-  @callback authenticate(request :: :cowboy_req.req(), options :: any) ::
-              {:ok, %{room: String.t(), state: internal_state}}
-              | {:ok, %{room: String.t()}}
-              | {:error, reason :: any}
+  @callback parse_auth_request(request :: :cowboy_req.req()) ::
+              {:ok, credentials :: map(), metadata :: any(), room_name :: String.t()}
+              | {:error, details :: any()}
 
   @doc """
-  Callback invoked before initialization of WebSocket, after successful authentication.
-  Useful for setting custom Cowboy WebSocket options, like timeout or maximal frame size.
+  Callback invoked when peer is started.
+
+  Useful for setting up state and custom Cowboy WebSocket options, like timeout or maximal frame size.
 
   This callback is optional.
   """
   @callback on_init(
-              request :: :cowboy_req.req(),
               context :: Context.t(),
-              state :: internal_state
+              options :: any()
             ) ::
-              {:cowboy_websocket, :cowboy_req.req(), internal_state}
-              | {:cowboy_websocket, :cowboy_req.req(), internal_state, :cowboy_websocket.opts()}
+              {:ok, state :: internal_state}
+              | {:ok, websocket_options :: :cowboy_websocket.opts(), state :: internal_state}
+
+  @doc """
+  Callback invoked before initialization of WebSocket to confirm identity of client.
+
+  Returning `{:error, details}` will cause aborting initialization of WebSocket
+  and returning reply with 401 status code.
+
+  This callback is optional.
+  """
+  @callback authenticate(
+              auth_data :: AuthData.t(),
+              context :: Context.t(),
+              state :: internal_state()
+            ) ::
+              {:ok, state :: internal_state()}
+              | {:error, details :: any}
 
   @doc """
   Callback invoked after initialization of WebSocket.
@@ -69,12 +71,8 @@ defmodule Membrane.WebRTC.Server.Peer do
 
   This callback is optional.
   """
-  @callback on_websocket_init(context :: Context.t(), state :: internal_state) ::
+  @callback after_init(context :: Context.t(), state :: internal_state) ::
               {:ok, internal_state}
-              | {:ok, internal_state, :hibernate}
-              | {:reply, :cow_ws.frame() | [:cow_ws.frame()], internal_state}
-              | {:reply, :cow_ws.frame() | [:cow_ws.frame()], internal_state, :hibernate}
-              | {:stop, internal_state}
 
   @doc """
   Callback invoked after successful decoding received JSON message.
@@ -85,19 +83,16 @@ defmodule Membrane.WebRTC.Server.Peer do
   This callback is optional.
   """
   @callback on_message(message :: Message.t(), context :: Context.t(), state :: internal_state) ::
-              {:ok, Message.t(), internal_state}
-              | {:ok, internal_state}
+              {:ok, message :: Message.t(), state :: internal_state}
+              | {:ok, state :: internal_state}
 
   @doc """
   Callback invoked when peer is shutting down.
-  Internally called in `:cowboy_websocket.terminate/3` callback.
   Useful for any cleanup required.
 
   This callback is optional.
   """
   @callback on_terminate(
-              reason :: terminate_reason,
-              partial_req :: :cowboy_req.req(),
               context :: Context.t(),
               state :: internal_state
             ) :: :ok
@@ -107,33 +102,67 @@ defmodule Membrane.WebRTC.Server.Peer do
     use Room
   end
 
+  @doc """
+  Encodes message into JSON and sends it to client.
+  """
+  @spec send_to_client(peer :: pid(), message :: Message.t()) :: :ok
+  def send_to_client(peer, message) do
+    encoded = Jason.encode!(message)
+    send(peer, {:message, encoded})
+    :ok
+  end
+
+  @doc """
+  Stops peer process.
+  """
+  @spec stop(peer :: pid()) :: :ok
+  def stop(peer) do
+    send(peer, :stop)
+    :ok
+  end
+
   @impl true
-  def init(request, %Options{module: module, room_module: room_module} = options) do
-    case callback_exec(:authenticate, [request], options) do
-      {:ok, %{room: room, state: internal_state}} ->
-        state = %State{
-          room: room,
-          peer_id: UUID.uuid1(),
-          module: module,
-          internal_state: internal_state,
-          room_module: room_module
-        }
+  def init(request, %Options{} = options) do
+    peer_id = UUID.uuid1()
 
-        callback_exec(:on_init, [request], state)
+    with {:ok, auth_data, room} <-
+           callback_exec(:parse_auth_request, [request], options, peer_id),
+         {:ok, websocket_options, internal_state} <-
+           callback_exec(:on_init, [%Context{peer_id: peer_id, room: room}], options),
+         state <- %State{
+           module: options.module,
+           room: room,
+           peer_id: peer_id,
+           internal_state: internal_state,
+           auth_data: auth_data
+         },
+         {:ok, state} <-
+           callback_exec(:authenticate, [auth_data], state) do
+      {:cowboy_websocket, request, state, websocket_options}
+    else
+      {:error, {:could_not_parse, details}} ->
+        Logger.error("Could not parse auth request, details: #{inspect(details)}")
+        reply = :cowboy_req.reply(400, request)
+        {:ok, reply, %{}}
 
-      {:error, reason} ->
-        Logger.error("Authentication error, reason: #{inspect(reason)}")
-        request = :cowboy_req.reply(401, request)
-        {:ok, request, %{}}
+      {:error, {:could_not_authenticate, details}} ->
+        Logger.error("Authentication error, details: #{inspect(details)}")
+        reply = :cowboy_req.reply(401, request)
+        {:ok, reply, %{}}
     end
   end
 
   @impl true
-  def websocket_init(%State{room: room, peer_id: peer_id} = state) do
-    room_pid = get_room_pid!(room, state)
-    Room.join(room_pid, peer_id, self())
-    Process.monitor(room_pid)
-    callback_exec(:on_websocket_init, [], state)
+  def websocket_init(%State{} = state) do
+    case join_room(state) do
+      :ok ->
+        state = %State{state | auth_data: :already_authorised}
+        callback_exec(:after_init, [], state)
+
+      {:error, {error, details}} ->
+        stop_and_send_error(self(), to_string(error), details)
+        {:ok, state}
+    end
   end
 
   @impl true
@@ -160,9 +189,13 @@ defmodule Membrane.WebRTC.Server.Peer do
   end
 
   @impl true
-  def websocket_info(%Message{} = message, state) do
-    encoded = message |> Jason.encode!()
-    {:reply, {:text, encoded}, state}
+  def websocket_info({:message, message}, state) do
+    {:reply, {:text, message}, state}
+  end
+
+  @impl true
+  def websocket_info(:stop, state) do
+    {:stop, state}
   end
 
   @impl true
@@ -173,44 +206,53 @@ defmodule Membrane.WebRTC.Server.Peer do
   end
 
   @impl true
-  def terminate(reason, req, %State{peer_id: peer_id} = state) do
-    Logger.info("Terminating peer #{peer_id}")
-    callback_exec(:on_terminate, [reason, req], state)
+  def terminate(_reason, _req, %State{} = state) do
+    callback_exec(:on_terminate, [], state)
   end
 
-  defp callback_exec(:authenticate, args, options) do
-    with {:ok, room: room} <- apply_callback(:authenticate, args, options) do
-      {:ok, %{room: room, state: nil}}
+  @impl true
+  def terminate(_reason, _req, _options), do: :ok
+
+  defp callback_exec(:parse_auth_request, args, options, peer_id) do
+    case apply_callback(:parse_auth_request, args, options) do
+      {:ok, credentials, metadata, room} ->
+        auth_data = %AuthData{
+          credentials: credentials,
+          metadata: metadata,
+          peer_id: peer_id
+        }
+
+        {:ok, auth_data, room}
+
+      {:error, details} ->
+        {:error, {:could_not_parse, details}}
     end
   end
 
-  defp callback_exec(:on_init, [request], state) do
-    case apply_callback(:on_init, [request], state) do
-      {:cowboy_websocket, request, internal_state} ->
-        {:cowboy_websocket, request, %State{state | internal_state: internal_state}}
+  defp callback_exec(:on_init, args, options) do
+    case apply_callback(:on_init, args, options) do
+      {:ok, websocket_options, internal_state} ->
+        {:ok, websocket_options, internal_state}
 
-      {:cowboy_websocket, request, internal_state, opts} ->
-        {:cowboy_websocket, request, %State{state | internal_state: internal_state}, opts}
+      {:ok, internal_state} ->
+        websocket_options = %{idle_timeout: 1000 * 60 * 15}
+        {:ok, websocket_options, internal_state}
     end
   end
 
-  defp callback_exec(:on_websocket_init, [], state) do
-    case apply_callback(:on_websocket_init, [], state) do
+  defp callback_exec(:authenticate, args, state) do
+    case apply_callback(:authenticate, args, state) do
       {:ok, internal_state} ->
         {:ok, %State{state | internal_state: internal_state}}
 
-      {:ok, internal_state, :hibernate} ->
-        {:ok, %State{state | internal_state: internal_state}, :hibernate}
-
-      {:reply, frames, internal_state} ->
-        {:reply, frames, %State{state | internal_state: internal_state}}
-
-      {:reply, frames, internal_state, :hibernate} ->
-        {:reply, frames, %State{state | internal_state: internal_state}, :hibernate}
-
-      {:stop, internal_state} ->
-        {:stop, %State{state | internal_state: internal_state}}
+      {:error, details} ->
+        {:error, {:could_not_authenticate, details}}
     end
+  end
+
+  defp callback_exec(:after_init, [], state) do
+    {:ok, internal_state} = apply_callback(:after_init, [], state)
+    {:ok, %State{state | internal_state: internal_state}}
   end
 
   defp callback_exec(:on_message, [message], state) do
@@ -219,9 +261,15 @@ defmodule Membrane.WebRTC.Server.Peer do
         {:ok, %State{state | internal_state: internal_state}}
 
       {:ok, %Message{} = message, internal_state} ->
-        room_pid = get_room_pid!(state.room, state)
-        Room.send_message(room_pid, message)
-        {:ok, %State{state | internal_state: internal_state}}
+        case get_room_pid(state.room) do
+          {:ok, room_pid} ->
+            Room.send_message(room_pid, message)
+            {:ok, %State{state | internal_state: internal_state}}
+
+          {:error, {:no_such_room, room}} ->
+            Logger.error("Could not find room named #{room}")
+            {:stop, state}
+        end
     end
   end
 
@@ -229,9 +277,13 @@ defmodule Membrane.WebRTC.Server.Peer do
     apply_callback(:on_terminate, args, state)
   end
 
-  defp apply_callback(:authenticate, args, options) do
+  defp apply_callback(:on_init, args, options) do
     args = args ++ [options.custom_options]
-    apply(options.module, :authenticate, args)
+    apply(options.module, :on_init, args)
+  end
+
+  defp apply_callback(:parse_auth_request, args, options) do
+    apply(options.module, :parse_auth_request, args)
   end
 
   defp apply_callback(callback, args, state) do
@@ -239,14 +291,40 @@ defmodule Membrane.WebRTC.Server.Peer do
     apply(state.module, callback, args)
   end
 
+  defp join_room(state) do
+    with {:ok, room_pid} <- get_room_pid(state.room) do
+      case Room.join(room_pid, state.auth_data, self()) do
+        :ok ->
+          Process.monitor(room_pid)
+          :ok
+
+        {:error, {:could_not_authorize, details}} ->
+          {:error, {:could_not_authorize, details}}
+
+        {:error, error} ->
+          {:error, {:could_not_join_room, error}}
+      end
+    end
+  end
+
+  defp stop_and_send_error(peer, error, details) do
+    message = %Message{event: error, data: details}
+    send_to_client(peer, message)
+
+    error_log = error |> String.replace("_", " ") |> String.capitalize()
+    Logger.error("#{error_log}, details: #{inspect(details)}")
+
+    stop(peer)
+  end
+
   defp handle_message(
          {:ok, %{"event" => _event} = message},
-         %State{peer_id: peer_id} = state
+         state
        ) do
     message =
       message
       |> Bunch.Map.map_keys(fn string -> String.to_atom(string) end)
-      |> Map.put(:from, peer_id)
+      |> Map.put(:from, state.peer_id)
 
     message = struct(Message, message)
     callback_exec(:on_message, [message], state)
@@ -268,26 +346,13 @@ defmodule Membrane.WebRTC.Server.Peer do
     {:ok, state}
   end
 
-  defp get_room_pid!(room, state) do
-    case get_room_pid(room, state) do
-      {:ok, pid} when is_pid(pid) -> pid
-      {:ok, pid, _info} when is_pid(pid) -> pid
-      {:error, tuple} when is_tuple(tuple) -> raise inspect(tuple)
-      {:error, error} -> raise error
-      {:error, error, message} -> raise error, message
-    end
-  end
-
-  defp get_room_pid(room, %State{room_module: room_module}) do
+  defp get_room_pid(room) do
     case Registry.lookup(Server.Registry, room) do
-      [{room_pid, :room}] when is_pid(room_pid) ->
+      [{room_pid, _value}] when is_pid(room_pid) ->
         {:ok, room_pid}
 
       [] ->
-        Room.create(room, room_module)
-
-      match ->
-        {:error, MatchError, term: match}
+        {:error, {:no_such_room, room}}
     end
   end
 
@@ -295,28 +360,32 @@ defmodule Membrane.WebRTC.Server.Peer do
     quote location: :keep do
       @behaviour unquote(__MODULE__)
 
-      def authenticate(_request, _options),
-        do: {:ok, room: "room"}
-
-      def on_init(request, _context, state) do
-        opts = %{idle_timeout: 1000 * 60 * 15}
-        {:cowboy_websocket, request, state, opts}
+      def parse_auth_request(request) do
+        {:ok, %{}, nil, "room"}
       end
 
-      def on_websocket_init(_context, state),
+      def authenticate(auth_data, _context, state),
+        do: {:ok, state}
+
+      def on_init(_context, options) do
+        {:ok, nil}
+      end
+
+      def after_init(_context, state),
         do: {:ok, state}
 
       def on_message(message, _context, state),
         do: {:ok, message, state}
 
-      def on_terminate(_reason, _req, _context, _state),
+      def on_terminate(_context, _state),
         do: :ok
 
-      defoverridable authenticate: 2,
-                     on_init: 3,
-                     on_websocket_init: 2,
+      defoverridable parse_auth_request: 1,
+                     authenticate: 3,
+                     on_init: 2,
+                     after_init: 2,
                      on_message: 3,
-                     on_terminate: 4
+                     on_terminate: 2
     end
   end
 end
