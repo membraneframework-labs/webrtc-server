@@ -6,14 +6,14 @@ defmodule Membrane.WebRTC.Server.Support.CustomPeer do
   alias Membrane.WebRTC.Server.Message
 
   @impl true
-  def on_init(req, _ctx, _state) do
-    {:cowboy_websocket, req, :custom_internal_state, %{idle_timeout: 20}}
+  def on_init(_ctx, _state) do
+    {:ok, %{idle_timeout: 20}, :custom_internal_state}
   end
 
   @impl true
-  def on_websocket_init(_ctx, _state) do
+  def after_init(_ctx, _state) do
     state = %{a: :a}
-    {:ok, state, :hibernate}
+    {:ok, state}
   end
 
   @impl true

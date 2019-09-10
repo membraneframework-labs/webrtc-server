@@ -20,7 +20,7 @@ defmodule Membrane.WebRTC.Server.PeerTest do
         peer_id: "1",
         module: MockPeer,
         internal_state: nil,
-        room_module: Peer.DefaultRoom
+        auth_data: :already_authorised
       },
       mock_request: %{
         method: "GET",
@@ -75,14 +75,6 @@ defmodule Membrane.WebRTC.Server.PeerTest do
   end
 
   describe "handle info" do
-    test "should reply with same message", ctx do
-      message = %Message{event: "ok", data: "same"}
-      {:ok, encoded} = message |> Map.from_struct() |> Jason.encode()
-
-      assert @module.websocket_info(message, ctx.state) ==
-               {:reply, {:text, encoded}, ctx.state}
-    end
-
     test "with DOWN message should return {:stop, state}", ctx do
       message = {:DOWN, make_ref(), :process, self(), :exit_reason}
       assert @module.websocket_info(message, ctx.state) == {:stop, ctx.state}

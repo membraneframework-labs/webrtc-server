@@ -7,52 +7,22 @@ defmodule Membrane.WebRTC.Server.RoomTest do
 
   @module Membrane.WebRTC.Server.Room
 
-  describe "handle_info" do
+  describe "handle_cast" do
     test "should remove peer" do
-      assert @module.handle_info({:leave, "peer_2"}, state(2)) == {:noreply, state(1)}
+      assert @module.handle_cast({:leave, "peer_2"}, state(2)) == {:noreply, state(1)}
     end
 
     test "should remove no peer" do
-      assert @module.handle_info({:leave, "peer_3"}, state(2)) == {:noreply, state(2)}
-    end
-
-    test "remove last peer from room and close room" do
-      assert @module.handle_info({:leave, "peer_1"}, state(1)) == {:stop, :normal, state(0)}
-    end
-
-    test "should add peer to room" do
-      assert @module.handle_info({:join, "peer_2", IEx.Helpers.pid("0.2.0")}, state(1)) ==
-               {:noreply, state(2)}
-    end
-
-    test "should add peer to room with many peers" do
-      assert @module.handle_info({:join, "peer_150", IEx.Helpers.pid("0.150.0")}, state(149)) ==
-               {:noreply, state(150)}
-    end
-
-    test "should add peer to empty room" do
-      assert @module.handle_info({:join, "peer_1", self()}, state(0)) == {:noreply, state(1)}
-    end
-
-    test "should raise when given pid isn't a pid" do
-      assert_raise FunctionClauseError,
-                   ~r/no function clause matching in Membrane.WebRTC.Server.Room.handle_info\/2/,
-                   fn -> @module.handle_info({:join, "peer_10", :not_a_pid}, state(4)) end
-    end
-
-    test "should replace already existing peer" do
-      pid = RoomHelper.generate_pid(5, true)
-      state = %State{peers: BiMap.new(%{"peer_1" => pid}), module: MockRoom}
-      assert @module.handle_info({:join, "peer_1", pid}, state(1)) == {:noreply, state}
+      assert @module.handle_cast({:leave, "peer_3"}, state(2)) == {:noreply, state(2)}
     end
 
     test "shouldn't receive broadcasted message when broadcaster is given" do
-      @module.handle_info({:broadcast, :ping, "peer_1"}, state(10, BiMap.new(), true))
+      @module.handle_cast({:broadcast, :ping, "peer_1"}, state(10, BiMap.new(), true))
       refute_received :ping
     end
 
     test "shouldn't change state nor send messages when broadcasting to empty room" do
-      assert @module.handle_info({:broadcast, :ping}, state(0)) == {:noreply, state(0)}
+      assert @module.handle_cast({:broadcast, :ping}, state(0)) == {:noreply, state(0)}
       refute_received :ping
     end
   end
@@ -73,34 +43,62 @@ defmodule Membrane.WebRTC.Server.RoomTest do
 
       refute_received ^ping_message
     end
+
+    test "should add peer to room" do
+      auth_data = RoomHelper.create_auth(2)
+      pid = RoomHelper.generate_pid(2, false)
+
+      assert @module.handle_call({:join, auth_data, pid}, self(), state(1)) ==
+               {:reply, :ok, state(2)}
+    end
+
+    test "should add peer to room with many peers" do
+      auth_data = RoomHelper.create_auth(150)
+      pid = RoomHelper.generate_pid(150, false)
+
+      assert @module.handle_call(
+               {:join, auth_data, pid},
+               self(),
+               state(149)
+             ) ==
+               {:reply, :ok, state(150)}
+    end
+
+    test "should add peer to empty room" do
+      auth_data = RoomHelper.create_auth(1)
+
+      assert @module.handle_call({:join, auth_data, self()}, self(), state(0)) ==
+               {:reply, :ok, state(1)}
+    end
+
+    test "should replace already existing peer" do
+      pid = RoomHelper.generate_pid(5, true)
+      state = %State{peers: BiMap.new(%{"peer_1" => pid}), module: MockRoom}
+      auth_data = RoomHelper.create_auth(1)
+
+      assert @module.handle_call({:join, auth_data, pid}, self(), state(1)) ==
+               {:reply, :ok, state}
+    end
   end
 
   describe "init" do
     test "registry itself" do
       {:ok, pid} = @module.start_link(%{name: "name", module: MockRoom})
-      assert Registry.lookup(Server.Registry, "name") == [{pid, :room}]
+      assert Registry.lookup(Server.Registry, "name") == [{pid, nil}]
     end
   end
 
   describe "terminate" do
-    test "should receive process termination message after last peer leave" do
-      assert {:ok, room_pid} = @module.create("room", MockRoom)
-      Process.monitor(room_pid)
-      @module.join(room_pid, "peer_id", RoomHelper.generate_pid(0, false))
-      @module.leave(room_pid, "peer_id")
-      assert_receive({:DOWN, _reference, :process, ^room_pid, _reason})
-    end
-
     test "should unregistry itself and not cause Registry termination" do
       Application.start(:logger)
-      Logger.configure(level: :error)
+      auth_data = RoomHelper.create_auth("id")
 
-      assert {:ok, room_pid} = @module.create("room", MockRoom)
+      assert {:ok, room_pid} = @module.start_link(%{name: "room", module: MockRoom})
       assert {:ok, mock_pid} = @module.start_link(%{name: "mock", module: MockRoom})
-      @module.join(room_pid, "peer_id", RoomHelper.generate_pid(0, false))
-      @module.leave(room_pid, "peer_id")
+      @module.join(room_pid, auth_data, RoomHelper.generate_pid(0, false))
+      assert :ok == GenServer.stop(room_pid, :normal)
       Process.sleep(20)
-      assert Registry.lookup(Server.Registry, "mock") == [{mock_pid, :room}]
+      assert Registry.lookup(Server.Registry, "mock") == [{mock_pid, nil}]
       assert Registry.lookup(Server.Registry, "room") == []
     end
   end

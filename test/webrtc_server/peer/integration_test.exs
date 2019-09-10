@@ -2,7 +2,7 @@ defmodule Membrane.WebRTC.Server.IntegrationTest do
   use ExUnit.Case, async: false
 
   alias Membrane.WebRTC.Server.{Message, Peer, Room}
-  alias Membrane.WebRTC.Server.Peer.State
+  alias Membrane.WebRTC.Server.Peer.{AuthData, State}
   alias Membrane.WebRTC.Server.{Support.CustomPeer, Support.MockPeer, Support.RoomHelper}
 
   @module Membrane.WebRTC.Server.Peer
@@ -18,46 +18,53 @@ defmodule Membrane.WebRTC.Server.IntegrationTest do
     {:ok, pid} = start_supervised(child_options)
     insert_peers(10, pid, true)
 
+    authorised = %State{
+      room: "room",
+      peer_id: "peer_10",
+      module: MockPeer,
+      internal_state: %{},
+      auth_data: :already_authorised
+    }
+
+    unauthorised = %State{authorised | auth_data: %AuthData{peer_id: "peer_10", credentials: %{}}}
+
     [
-      peer_state: %State{
-        room: "room",
-        peer_id: "peer_10",
-        module: MockPeer,
-        internal_state: %{},
-        room_module: Peer.DefaultRoom
-      },
+      authorised_state: authorised,
+      unauthorised_state: unauthorised,
       room_pid: pid
     ]
   end
 
   describe "websocket_init" do
     test "should execute custom callback", ctx do
-      state = %State{ctx.peer_state | module: CustomPeer}
+      state = %State{ctx.unauthorised_state | module: CustomPeer}
+
+      after_init_state =
+        state
+        |> Map.put(:internal_state, %{a: :a})
+        |> Map.put(:auth_data, :already_authorised)
 
       assert @module.websocket_init(state) ==
-               {:ok, %State{state | internal_state: %{a: :a}}, :hibernate}
+               {:ok, after_init_state}
     end
 
     test "should return {:ok, state} when no callback provided", ctx do
-      assert @module.websocket_init(ctx.peer_state) == {:ok, ctx.peer_state}
+      assert @module.websocket_init(ctx.unauthorised_state) == {:ok, ctx.authorised_state}
     end
 
     test "should cause joining room", ctx do
-      @module.websocket_init(%State{ctx.peer_state | peer_id: "test_peer"})
+      auth_data = %AuthData{ctx.unauthorised_state.auth_data | peer_id: "test_peer"}
 
-      assert [{room_pid, :room}] = Registry.lookup(Server.Registry, "room")
-      assert is_pid(room_pid)
-      assert Process.alive?(room_pid)
-      assert Room.send_message(room_pid, %Message{event: "ping", to: "test_peer"}) == :ok
-    end
-
-    test "with room that does not exists should cause creating room", ctx do
       state =
-        ctx.peer_state |> Map.put(:room, "non-existant-room") |> Map.put(:peer_id, "test_peer")
+        ctx.unauthorised_state
+        |> Map.put(:peer_id, "test_peer")
+        |> Map.put(:auth_data, auth_data)
 
-      @module.websocket_init(state)
+      after_init_state = %State{state | auth_data: :already_authorised}
 
-      assert [{room_pid, :room}] = Registry.lookup(Server.Registry, "non-existant-room")
+      assert @module.websocket_init(state) == {:ok, after_init_state}
+
+      assert [{room_pid, nil}] = Registry.lookup(Server.Registry, "room")
       assert is_pid(room_pid)
       assert Process.alive?(room_pid)
       assert Room.send_message(room_pid, %Message{event: "ping", to: "test_peer"}) == :ok
@@ -66,30 +73,32 @@ defmodule Membrane.WebRTC.Server.IntegrationTest do
 
   describe "handle frames" do
     test "sending correct message should not change state", ctx do
-      {:ok, correct_message} = Jason.encode(%{"to" => "peer_1", "data" => %{}})
+      correct_message = Jason.encode!(%{"to" => "peer_1", "data" => %{}})
 
-      assert @module.websocket_handle({:text, correct_message}, ctx.peer_state) ==
-               {:ok, ctx.peer_state}
+      assert @module.websocket_handle({:text, correct_message}, ctx.authorised_state) ==
+               {:ok, ctx.authorised_state}
     end
 
     test "should receive message after sending correct one", ctx do
-      {:ok, correct_message} =
-        Jason.encode(%{"to" => "peer_1", "data" => %{}, "event" => "event"})
+      correct_message = Jason.encode!(%{"to" => "peer_1", "data" => %{}, "event" => "event"})
 
-      @module.websocket_handle({:text, correct_message}, ctx.peer_state)
+      @module.websocket_handle({:text, correct_message}, ctx.authorised_state)
 
-      assert_received %Membrane.WebRTC.Server.Message{
+      message = %Membrane.WebRTC.Server.Message{
         data: %{},
         event: "event",
         from: "peer_10",
         to: "peer_1"
       }
+
+      received = {:message, message |> Jason.encode!()}
+      assert_received ^received
     end
 
     test "should receive message modified by callback and not the original one", ctx do
       message = %{event: "modify", data: "a", to: "peer_1", from: "peer_10"}
-      state = %State{ctx.peer_state | module: CustomPeer}
-      modified = struct(Message, Map.put(message, :data, "ab"))
+      state = %State{ctx.authorised_state | module: CustomPeer}
+      modified = {:message, struct(Message, Map.put(message, :data, "ab")) |> Jason.encode!()}
       assert @module.websocket_handle({:text, Jason.encode!(message)}, state) == {:ok, state}
 
       assert_received ^modified
@@ -97,16 +106,16 @@ defmodule Membrane.WebRTC.Server.IntegrationTest do
 
     test "should not receive message when on_message callback ignore it", ctx do
       message = %{event: "ignore", from: "peer_10"}
-      state = %State{ctx.peer_state | module: CustomPeer}
+      state = %State{ctx.authorised_state | module: CustomPeer}
       assert @module.websocket_handle({:text, Jason.encode!(message)}, state) == {:ok, state}
-      ignored = struct(Message, message)
+      ignored = {:message, struct(Message, message) |> Jason.encode!()}
       refute_received ^ignored
     end
 
     test "should receive original message if callback return it", ctx do
       message = %{event: "just send it", data: "a", to: "peer_1", from: "peer_10"}
-      state = %State{ctx.peer_state | module: CustomPeer}
-      received = struct(Message, message)
+      state = %State{ctx.authorised_state | module: CustomPeer}
+      received = {:message, struct(Message, message) |> Jason.encode!()}
       assert @module.websocket_handle({:text, Jason.encode!(message)}, state) == {:ok, state}
 
       assert_received ^received
@@ -114,8 +123,8 @@ defmodule Membrane.WebRTC.Server.IntegrationTest do
 
     test "should change internal state if callback return it", ctx do
       message = %{event: "change state", data: "brand new state", to: "peer_1", from: "peer_10"}
-      state = %State{ctx.peer_state | module: CustomPeer}
-      received = struct(Message, message)
+      state = %State{ctx.authorised_state | module: CustomPeer}
+      received = {:message, struct(Message, message) |> Jason.encode!()}
       new_state = %State{state | internal_state: "brand new state"}
       assert @module.websocket_handle({:text, Jason.encode!(message)}, state) == {:ok, new_state}
 
@@ -125,36 +134,29 @@ defmodule Membrane.WebRTC.Server.IntegrationTest do
 
   describe "handle terminate" do
     test "should return :ok and receive message about leaving room by peer_10", ctx do
-      assert @module.terminate(:normal, %{}, ctx.peer_state) == :ok
-      assert_receive %Message{data: %{peer_id: "peer10"}, event: "left"}
+      assert @module.terminate(:normal, %{}, ctx.authorised_state) == :ok
+      message = %Message{data: %{peer_id: "peer_10"}, event: "left"}
+      received = {:message, message |> Jason.encode!()}
+      assert_receive ^received
     end
   end
 
   def insert_peers(number_of_peers, room, real \\ false)
-  def insert_peers(1, room, _real), do: Room.join(room, "peer_1", self())
+
+  def insert_peers(1, room, _real) do
+    auth_data = %AuthData{peer_id: "peer_1", credentials: %{}}
+    Room.join(room, auth_data, self())
+  end
 
   def insert_peers(n, room, real) when n > 1 do
-    Room.join(room, "peer_1", self())
+    Room.join(room, %AuthData{peer_id: "peer_1", credentials: %{}}, self())
 
     2..n
     |> Enum.map(fn num ->
-      with peer_id <- "peer" <> to_string(num),
+      with auth_data <- %AuthData{peer_id: "peer_" <> to_string(num), credentials: %{}},
            pid <- RoomHelper.generate_pid(num, real) do
-        Room.join(room, peer_id, pid)
+        Room.join(room, auth_data, pid)
       end
     end)
-  end
-
-  def insert_peers(number_of_peers, room, real) do
-    case number_of_peers do
-      1 ->
-        Room.join(room, "peer_1", self())
-
-      n ->
-        peer = "peer_" <> to_string(n)
-        pid = RoomHelper.generate_pid(n, real)
-        Room.join(room, peer, pid)
-        insert_peers(n - 1, room, real)
-    end
   end
 end
