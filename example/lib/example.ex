@@ -2,6 +2,7 @@ defmodule Example.Application do
   @moduledoc false
   use Application
   alias Membrane.WebRTC.Server.Peer.Options
+  alias Membrane.WebRTC.Server.Room
 
   @impl true
   def start(_type, _args) do
@@ -19,7 +20,8 @@ defmodule Example.Application do
           keyfile: Application.fetch_env!(:example, :keyfile),
           certfile: Application.fetch_env!(:example, :certfile)
         ]
-      )
+      ),
+      Room.child_spec(%{name: "room", module: Example.Room})
     ]
 
     opts = [strategy: :one_for_one, name: Example.Application]
@@ -37,7 +39,7 @@ defmodule Example.Application do
     [
       {:_,
        [
-         {"/websocket/[:room]/", Membrane.WebRTC.Server.Peer, options},
+         {"/websocket/[:room]/[:username]/[:password]/", Membrane.WebRTC.Server.Peer, options},
          {:_, Plug.Cowboy.Handler, {Example.Router, []}}
        ]}
     ]
