@@ -8,7 +8,8 @@ defmodule Membrane.WebRTC.Server.Room do
 
   use GenServer
   require Logger
-  alias Membrane.WebRTC.Server.Message
+  alias Membrane.WebRTC.Server.{Message, Peer}
+  alias Membrane.WebRTC.Server.Peer.AuthData
 
   @typedoc """
   Defines custom state of Room, passed as argument and returned by callbacks. 
@@ -41,11 +42,33 @@ defmodule Membrane.WebRTC.Server.Room do
   @doc """
   Callback invoked when room is created.
 
-  Internally called in `c:init/1` callback.
+  This callback is optional.
+  """
+  @callback on_init(args :: room_options) :: {:ok, internal_state()}
+
+  @doc """
+  Callback invoked to authorize peer before it joins the room.
+     
+  This callback is optional.
+  """
+  @callback authorize(auth_data :: AuthData.t(), state :: internal_state()) ::
+              {:ok, internal_state()} | {{:error, atom()}, internal_state}
+
+  @doc """
+  Callback invoked when peer is about to join the room, after successfull authoriation.
 
   This callback is optional.
   """
-  @callback on_init(args :: room_options) :: {:ok, internal_state}
+  @callback on_join(auth_data :: AuthData.t(), state :: internal_state()) ::
+              {:ok, internal_state()} | {{:error, atom()}, internal_state()}
+
+  @doc """
+  Callback invoked when peer is leaving the room.
+
+  This callback is optional.
+  """
+  @callback on_leave(peer_id :: String.t(), state :: internal_state()) ::
+              {:ok, internal_state()}
 
   @doc """
   Callback invoked before sending message.
@@ -54,7 +77,7 @@ defmodule Membrane.WebRTC.Server.Room do
 
   This callback is optional.
   """
-  @callback on_message(
+  @callback on_send(
               message :: Message.t(),
               state :: internal_state()
             ) :: {:ok, internal_state()} | {:ok, Message.t(), internal_state()}
@@ -75,25 +98,21 @@ defmodule Membrane.WebRTC.Server.Room do
 
   @doc """
   Callback invoked when room is shutting down.
-  Internally called in `c:GenServer.terminate/2` callback.
   Useful for any cleanup required.
 
   This callback is optional.
   """
-  @callback on_terminate(
-              reason :: :normal | :shutdown | {:shutdown, any},
-              state :: internal_state()
-            ) :: :ok
+  @callback on_terminate(state :: internal_state()) :: :ok
 
   @doc """
   Starts Room based on given module, registers it in Server.Registry
-  (under given name and value: `:room`) and links it to current process.
+  (under given name) and links it to current process.
 
   Args are passed to module's `c:on_init/1` callback.
   """
   @spec start_link(args :: room_options) :: GenServer.on_start()
   def start_link(%{name: room_name} = args) do
-    name = {:via, Registry, {Server.Registry, room_name, :room}}
+    name = {:via, Registry, {Server.Registry, room_name}}
     GenServer.start_link(__MODULE__, args, name: name)
   end
 
@@ -110,24 +129,28 @@ defmodule Membrane.WebRTC.Server.Room do
   Adds the peer to the room. Broadcasts message
   (`%Message{event: joined, data: %{peer_id: peer_id}}`) to other peers in room. 
   """
-
-  @spec join(room :: pid(), peer_id :: peer_id, peer_pid :: pid()) :: :ok
-  def join(room, peer_id, peer_pid) do
-    message = %Message{event: "joined", data: %{peer_id: peer_id}}
-    broadcast(room, message)
-    send(room, {:join, peer_id, peer_pid})
-    :ok
+  @spec join(room :: pid(), auth_data :: AuthData.t(), peer_pid :: pid()) ::
+          :ok | {:error, atom()} | {:error, {atom(), any()}}
+  def join(room, auth_data, peer_pid) do
+    with :ok <-
+           GenServer.call(
+             room,
+             {:join, auth_data, peer_pid}
+           ) do
+      message = %Message{event: "joined", data: %{peer_id: auth_data.peer_id}}
+      broadcast(room, message, auth_data.peer_id)
+      :ok
+    end
   end
 
   @doc """
-  Removes the peer from the room. Broadcast message
-  (`%Message{event: left, data: %{peer_id: peer_id}}`) to other peers in room. 
+  Removes the peer from the room. Broadcast message 
+  (`%Message{event: left, data: %{peer_id: peer_id}}`) to other peers
+  if given peer was in the room. 
   """
   @spec leave(room :: pid(), peer_id :: peer_id) :: :ok
   def leave(room, peer_id) do
-    message = %Message{event: "left", data: %{peer_id: peer_id}}
-    send(room, {:leave, peer_id})
-    broadcast(room, message)
+    GenServer.cast(room, {:leave, peer_id})
   end
 
   @doc """
@@ -139,7 +162,7 @@ defmodule Membrane.WebRTC.Server.Room do
           broadcaster :: peer_id
         ) :: :ok
   def broadcast(room, message, broadcaster) do
-    send(room, {:broadcast, message, broadcaster})
+    GenServer.cast(room, {:broadcast, message, broadcaster})
     :ok
   end
 
@@ -148,7 +171,7 @@ defmodule Membrane.WebRTC.Server.Room do
   """
   @spec broadcast(room :: pid(), message :: Message.t()) :: :ok
   def broadcast(room, message) do
-    send(room, {:broadcast, message})
+    GenServer.cast(room, {:broadcast, message})
     :ok
   end
 
@@ -172,6 +195,14 @@ defmodule Membrane.WebRTC.Server.Room do
     end
   end
 
+  @doc """
+  Stops room process.
+  """
+  @spec stop(room :: pid()) :: :ok
+  def stop(room) do
+    GenServer.cast(room, :stop)
+  end
+
   @impl true
   def init(%{module: module} = args) do
     state = %State{peers: BiMap.new(), module: module}
@@ -180,34 +211,51 @@ defmodule Membrane.WebRTC.Server.Room do
 
   @impl true
   def handle_call({:send, message}, _from, state),
-    do: callback_exec(:on_message, [message], state)
+    do: callback_exec(:on_send, [message], state)
 
   @impl true
-  def handle_info({:join, peer_id, pid}, state) when is_pid(pid) do
-    Process.monitor(pid)
-    state = %State{state | peers: BiMap.put(state.peers, peer_id, pid)}
-    {:noreply, state}
+  def handle_call({:join, auth_data, peer_pid}, _from, state) do
+    case(callback_exec(:authorize, [auth_data], state)) do
+      {:ok, internal_state} ->
+        new_state = %State{state | internal_state: internal_state}
+        callback_exec(:on_join, [peer_pid, auth_data.peer_id], new_state)
+
+      {{:error, details}, internal_state} ->
+        {:reply, {:error, {:could_not_authorize, details}},
+         %State{state | internal_state: internal_state}}
+    end
   end
 
   @impl true
-  def handle_info({:leave, peer_id}, state) do
-    state = %State{state | peers: BiMap.delete_key(state.peers, peer_id)}
+  def handle_cast({:leave, peer_id}, state) do
+    if BiMap.has_key?(state.peers, peer_id) do
+      {:ok, internal_state} = callback_exec(:on_leave, [peer_id], state)
+      peers = BiMap.delete_key(state.peers, peer_id)
 
-    if BiMap.size(state.peers) == 0 do
-      DynamicSupervisor.terminate_child(Server.RoomSupervisor, self())
-      {:stop, :normal, state}
+      new_state =
+        state
+        |> Map.put(:peers, peers)
+        |> Map.put(:internal_state, internal_state)
+
+      message = %Message{event: "left", data: %{peer_id: peer_id}}
+      broadcast(self(), message)
+      {:noreply, new_state}
     else
       {:noreply, state}
     end
   end
 
   @impl true
-  def handle_info({:broadcast, message}, state),
+  def handle_cast({:broadcast, message}, state),
     do: callback_exec(:on_broadcast, [message, nil], state)
 
   @impl true
-  def handle_info({:broadcast, message, broadcaster}, state),
+  def handle_cast({:broadcast, message, broadcaster}, state),
     do: callback_exec(:on_broadcast, [message, broadcaster], state)
+
+  @impl true
+  def handle_cast(:stop, state),
+    do: {:stop, :normal, state}
 
   @impl true
   def handle_info({:DOWN, _reference, :process, pid, _reason}, state) do
@@ -217,8 +265,8 @@ defmodule Membrane.WebRTC.Server.Room do
   end
 
   @impl true
-  def terminate(reason, state) do
-    callback_exec(:on_terminate, [reason], state)
+  def terminate(_reason, state) do
+    callback_exec(:on_terminate, [], state)
   end
 
   defp callback_exec(:on_init, args, state) do
@@ -226,8 +274,56 @@ defmodule Membrane.WebRTC.Server.Room do
     {:ok, %State{state | internal_state: internal_state}}
   end
 
-  defp callback_exec(:on_message, args, state) do
-    case apply(state.module, :on_message, args ++ [state.internal_state]) do
+  defp callback_exec(:authorize, args, state) do
+    apply(state.module, :authorize, args ++ [state.internal_state])
+  end
+
+  defp callback_exec(:on_join, [peer_pid, peer_id], state) do
+    case apply(state.module, :on_join, [peer_id] ++ [state.internal_state]) do
+      {:ok, internal_state} ->
+        peers = state.peers |> BiMap.put(peer_id, peer_pid)
+
+        new_state =
+          state
+          |> Map.put(:internal_state, internal_state)
+          |> Map.put(:peers, peers)
+
+        Process.monitor(peer_pid)
+        {:reply, :ok, new_state}
+
+      {{:error, error}, internal_state} ->
+        new_state = %State{state | internal_state: internal_state}
+        {:reply, {:error, error}, new_state}
+    end
+  end
+
+  defp callback_exec(:on_leave, args, state),
+    do: apply(state.module, :on_leave, args ++ [state.internal_state])
+
+  defp callback_exec(:on_broadcast, [_msg, broadcaster] = args, state) do
+    case apply(state.module, :on_broadcast, args ++ [state.internal_state]) do
+      {:ok, internal_state} ->
+        {:noreply, %State{state | internal_state: internal_state}}
+
+      {:ok, message, internal_state} ->
+        if broadcaster == nil do
+          Enum.each(state.peers, fn {_peer, pid} ->
+            Peer.send_to_client(pid, message)
+          end)
+        else
+          Enum.each(state.peers, fn {peer_id, pid} ->
+            if peer_id != broadcaster do
+              Peer.send_to_client(pid, message)
+            end
+          end)
+        end
+
+        {:noreply, %State{state | internal_state: internal_state}}
+    end
+  end
+
+  defp callback_exec(:on_send, args, state) do
+    case apply(state.module, :on_send, args ++ [state.internal_state]) do
       {:ok, internal_state} ->
         {:noreply, %State{state | internal_state: internal_state}}
 
@@ -237,29 +333,9 @@ defmodule Membrane.WebRTC.Server.Room do
             {:reply, {:error, :no_such_peer}, %State{state | internal_state: internal_state}}
 
           pid ->
-            send(pid, message)
+            Peer.send_to_client(pid, message)
             {:reply, :ok, %State{state | internal_state: internal_state}}
         end
-    end
-  end
-
-  defp callback_exec(:on_broadcast, [_msg, broadcaster] = args, state) do
-    case apply(state.module, :on_broadcast, args ++ [state.internal_state]) do
-      {:ok, internal_state} ->
-        {:noreply, %State{state | internal_state: internal_state}}
-
-      {:ok, message, internal_state} ->
-        if broadcaster == nil do
-          Enum.each(state.peers, fn {_peer, pid} -> send(pid, message) end)
-        else
-          Enum.each(state.peers, fn {peer_id, pid} ->
-            if peer_id != broadcaster do
-              send(pid, message)
-            end
-          end)
-        end
-
-        {:noreply, %State{state | internal_state: internal_state}}
     end
   end
 
@@ -273,7 +349,16 @@ defmodule Membrane.WebRTC.Server.Room do
       def on_init(_args),
         do: {:ok, %{}}
 
-      def on_message(message, state) do
+      def authorize(_peer_data, state),
+        do: {:ok, state}
+
+      def on_join(_peer_id, state),
+        do: {:ok, state}
+
+      def on_leave(_peer_id, state),
+        do: {:ok, state}
+
+      def on_send(message, state) do
         {:ok, message, state}
       end
 
@@ -281,13 +366,16 @@ defmodule Membrane.WebRTC.Server.Room do
         {:ok, message, state}
       end
 
-      def on_terminate(_reason, _state),
+      def on_terminate(_state),
         do: :ok
 
       defoverridable on_init: 1,
-                     on_message: 2,
+                     authorize: 2,
+                     on_join: 2,
+                     on_leave: 2,
+                     on_send: 2,
                      on_broadcast: 3,
-                     on_terminate: 2
+                     on_terminate: 1
     end
   end
 end
