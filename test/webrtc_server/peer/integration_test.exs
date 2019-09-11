@@ -36,22 +36,6 @@ defmodule Membrane.WebRTC.Server.IntegrationTest do
   end
 
   describe "websocket_init" do
-    test "should execute custom callback", ctx do
-      state = %State{ctx.unauthorised_state | module: CustomPeer}
-
-      after_init_state =
-        state
-        |> Map.put(:internal_state, %{a: :a})
-        |> Map.put(:auth_data, :already_authorised)
-
-      assert @module.websocket_init(state) ==
-               {:ok, after_init_state}
-    end
-
-    test "should return {:ok, state} when no callback provided", ctx do
-      assert @module.websocket_init(ctx.unauthorised_state) == {:ok, ctx.authorised_state}
-    end
-
     test "should cause joining room", ctx do
       auth_data = %AuthData{ctx.unauthorised_state.auth_data | peer_id: "test_peer"}
 
@@ -104,7 +88,7 @@ defmodule Membrane.WebRTC.Server.IntegrationTest do
       assert_received ^modified
     end
 
-    test "should not receive message when on_message callback ignore it", ctx do
+    test "should not receive message when on_send callback ignore it", ctx do
       message = %{event: "ignore", from: "peer_10"}
       state = %State{ctx.authorised_state | module: CustomPeer}
       assert @module.websocket_handle({:text, Jason.encode!(message)}, state) == {:ok, state}

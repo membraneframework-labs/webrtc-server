@@ -47,20 +47,26 @@ defmodule Membrane.WebRTC.Server.Room do
   @callback on_init(args :: room_options) :: {:ok, internal_state()}
 
   @doc """
-  Callback invoked to authorize peer before it joins the room.
-     
-  This callback is optional.
-  """
-  @callback authorize(auth_data :: AuthData.t(), state :: internal_state()) ::
-              {:ok, internal_state()} | {{:error, atom()}, internal_state}
+  Callback invoked when peer is about to join the room.
 
-  @doc """
-  Callback invoked when peer is about to join the room, after successfull authoriation.
+  Usefull for authorizing or performing other checks (i.e. controling number of peers in room).
+
+  Returning `{:error, error}` will cause Peer sending message
+  ```
+  {
+    "event": "error",
+    "data": {
+        "description": "Could not join room",
+        "details": error
+    }
+  }
+  ``` 
+  to client and closing WebSocket.
 
   This callback is optional.
   """
   @callback on_join(auth_data :: AuthData.t(), state :: internal_state()) ::
-              {:ok, internal_state()} | {{:error, atom()}, internal_state()}
+              {:ok, internal_state()} | {{:error, error :: atom()}, internal_state()}
 
   @doc """
   Callback invoked when peer is leaving the room.
@@ -215,14 +221,16 @@ defmodule Membrane.WebRTC.Server.Room do
 
   @impl true
   def handle_call({:join, auth_data, peer_pid}, _from, state) do
-    case(callback_exec(:authorize, [auth_data], state)) do
-      {:ok, internal_state} ->
-        new_state = %State{state | internal_state: internal_state}
-        callback_exec(:on_join, [peer_pid, auth_data.peer_id], new_state)
+    case callback_exec(:on_join, [auth_data], state) do
+      {:ok, state} ->
+        peers = state.peers |> BiMap.put(auth_data.peer_id, peer_pid)
+        state = %State{state | peers: peers}
 
-      {{:error, details}, internal_state} ->
-        {:reply, {:error, {:could_not_authorize, details}},
-         %State{state | internal_state: internal_state}}
+        Process.monitor(peer_pid)
+        {:reply, :ok, state}
+
+      {{:error, error}, state} ->
+        {:reply, {:error, error}, state}
     end
   end
 
@@ -274,26 +282,15 @@ defmodule Membrane.WebRTC.Server.Room do
     {:ok, %State{state | internal_state: internal_state}}
   end
 
-  defp callback_exec(:authorize, args, state) do
-    apply(state.module, :authorize, args ++ [state.internal_state])
-  end
-
-  defp callback_exec(:on_join, [peer_pid, peer_id], state) do
-    case apply(state.module, :on_join, [peer_id] ++ [state.internal_state]) do
+  defp callback_exec(:on_join, args, state) do
+    case apply(state.module, :on_join, args ++ [state.internal_state]) do
       {:ok, internal_state} ->
-        peers = state.peers |> BiMap.put(peer_id, peer_pid)
-
-        new_state =
-          state
-          |> Map.put(:internal_state, internal_state)
-          |> Map.put(:peers, peers)
-
-        Process.monitor(peer_pid)
-        {:reply, :ok, new_state}
+        state = %State{state | internal_state: internal_state}
+        {:ok, state}
 
       {{:error, error}, internal_state} ->
-        new_state = %State{state | internal_state: internal_state}
-        {:reply, {:error, error}, new_state}
+        state = %State{state | internal_state: internal_state}
+        {{:error, error}, state}
     end
   end
 
@@ -349,10 +346,7 @@ defmodule Membrane.WebRTC.Server.Room do
       def on_init(_args),
         do: {:ok, %{}}
 
-      def authorize(_peer_data, state),
-        do: {:ok, state}
-
-      def on_join(_peer_id, state),
+      def on_join(_auth_data, state),
         do: {:ok, state}
 
       def on_leave(_peer_id, state),
@@ -370,7 +364,6 @@ defmodule Membrane.WebRTC.Server.Room do
         do: :ok
 
       defoverridable on_init: 1,
-                     authorize: 2,
                      on_join: 2,
                      on_leave: 2,
                      on_send: 2,

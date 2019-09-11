@@ -3,7 +3,6 @@ defmodule Example.Peer do
 
   use Membrane.WebRTC.Server.Peer
   require Logger
-  alias Membrane.WebRTC.Server.{Message, Peer}
 
   @impl true
   def parse_auth_request(request) do
@@ -39,17 +38,7 @@ defmodule Example.Peer do
   end
 
   @impl true
-  def after_init(context, state) do
-    message = %Message{event: :authenticated, data: %{peer_id: context.peer_id}}
-    Peer.send_to_client(self(), message)
-
-    Logger.info("Hello, I'm #{state.username}")
-    Logger.info("These are my options: #{inspect(state.options)}")
-    {:ok, state}
-  end
-
-  @impl true
-  def on_message(message, context, state) do
+  def on_send(message, context, state) do
     Logger.info(
       "Sending message to peer #{message.to} from #{context.peer_id} in room #{context.room}"
     )

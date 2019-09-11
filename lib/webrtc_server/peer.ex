@@ -28,6 +28,18 @@ defmodule Membrane.WebRTC.Server.Peer do
   Returning `{:error, details}` will cause aborting initialization of WebSocket
   and returning reply with 400 status code and the same request as given.
 
+  Peer will later try to join room with registered under `room_name`. If no such room can't be found, peer will send message
+  ```
+  {
+    "event": "error",
+    "data": {
+        "description": "No such room",
+        "details": room_name
+    }
+  }
+  ```
+  to client and close WebSocket.
+
   This callback is optional.
   """
   @callback parse_auth_request(request :: :cowboy_req.req()) ::
@@ -65,16 +77,6 @@ defmodule Membrane.WebRTC.Server.Peer do
               | {:error, details :: any}
 
   @doc """
-  Callback invoked after initialization of WebSocket.
-  Useful for setting up internal state or informing client about successful authentication
-  and initialization. 
-
-  This callback is optional.
-  """
-  @callback after_init(context :: Context.t(), state :: internal_state) ::
-              {:ok, internal_state}
-
-  @doc """
   Callback invoked after successful decoding received JSON message.
   Peer will proceed to send message returned by this callback to Room,
   ergo returning `{:ok, state}` will cause ignoring message.
@@ -82,7 +84,7 @@ defmodule Membrane.WebRTC.Server.Peer do
 
   This callback is optional.
   """
-  @callback on_message(message :: Message.t(), context :: Context.t(), state :: internal_state) ::
+  @callback on_send(message :: Message.t(), context :: Context.t(), state :: internal_state) ::
               {:ok, message :: Message.t(), state :: internal_state}
               | {:ok, state :: internal_state}
 
@@ -157,10 +159,15 @@ defmodule Membrane.WebRTC.Server.Peer do
     case join_room(state) do
       :ok ->
         state = %State{state | auth_data: :already_authorised}
-        callback_exec(:after_init, [], state)
+        message = %Message{event: "authenticated", data: %{peer_id: state.peer_id}}
+        send_to_client(self(), message)
+        {:ok, state}
 
       {:error, {error, details}} ->
-        stop_and_send_error(self(), to_string(error), details)
+        error_log = to_string(error) |> String.replace("_", " ") |> String.capitalize()
+        Logger.error("#{error_log}, details: #{inspect(details)}")
+
+        stop_and_send_error(self(), error_log, details)
         {:ok, state}
     end
   end
@@ -200,9 +207,8 @@ defmodule Membrane.WebRTC.Server.Peer do
 
   @impl true
   def websocket_info({:DOWN, _reference, :process, _pid, reason}, state) do
-    message = %Message{event: "room_closed", data: %{reason: reason}}
-    send(self(), message)
-    {:stop, state}
+    stop_and_send_error(self(), "Room closed", reason)
+    {:ok, state}
   end
 
   @impl true
@@ -250,13 +256,8 @@ defmodule Membrane.WebRTC.Server.Peer do
     end
   end
 
-  defp callback_exec(:after_init, [], state) do
-    {:ok, internal_state} = apply_callback(:after_init, [], state)
-    {:ok, %State{state | internal_state: internal_state}}
-  end
-
-  defp callback_exec(:on_message, [message], state) do
-    case apply_callback(:on_message, [message], state) do
+  defp callback_exec(:on_send, [message], state) do
+    case apply_callback(:on_send, [message], state) do
       {:ok, internal_state} ->
         {:ok, %State{state | internal_state: internal_state}}
 
@@ -298,9 +299,6 @@ defmodule Membrane.WebRTC.Server.Peer do
           Process.monitor(room_pid)
           :ok
 
-        {:error, {:could_not_authorize, details}} ->
-          {:error, {:could_not_authorize, details}}
-
         {:error, error} ->
           {:error, {:could_not_join_room, error}}
       end
@@ -308,12 +306,8 @@ defmodule Membrane.WebRTC.Server.Peer do
   end
 
   defp stop_and_send_error(peer, error, details) do
-    message = %Message{event: error, data: details}
+    message = %Message{event: "error", data: %{description: error, details: details}}
     send_to_client(peer, message)
-
-    error_log = error |> String.replace("_", " ") |> String.capitalize()
-    Logger.error("#{error_log}, details: #{inspect(details)}")
-
     stop(peer)
   end
 
@@ -327,20 +321,20 @@ defmodule Membrane.WebRTC.Server.Peer do
       |> Map.put(:from, state.peer_id)
 
     message = struct(Message, message)
-    callback_exec(:on_message, [message], state)
+    callback_exec(:on_send, [message], state)
   end
 
   defp handle_message({:ok, _message}, state) do
-    send(self(), %Message{event: "error", data: %{desciption: "Invalid message"}})
+    send_to_client(self(), %Message{event: "error", data: %{desciption: "Invalid message"}})
     {:ok, state}
   end
 
   defp handle_message({:error, jason_error}, state) do
     Logger.warn("Wrong message")
 
-    send(self(), %Message{
+    send_to_client(self(), %Message{
       event: "error",
-      data: %{description: "Invalid JSON", details: jason_error}
+      data: %{description: "Invalid JSON", details: jason_error.data}
     })
 
     {:ok, state}
@@ -371,10 +365,7 @@ defmodule Membrane.WebRTC.Server.Peer do
         {:ok, nil}
       end
 
-      def after_init(_context, state),
-        do: {:ok, state}
-
-      def on_message(message, _context, state),
+      def on_send(message, _context, state),
         do: {:ok, message, state}
 
       def on_terminate(_context, _state),
@@ -383,8 +374,7 @@ defmodule Membrane.WebRTC.Server.Peer do
       defoverridable parse_auth_request: 1,
                      authenticate: 3,
                      on_init: 2,
-                     after_init: 2,
-                     on_message: 3,
+                     on_send: 3,
                      on_terminate: 2
     end
   end

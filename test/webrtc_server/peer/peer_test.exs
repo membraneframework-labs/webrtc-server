@@ -70,20 +70,32 @@ defmodule Membrane.WebRTC.Server.PeerTest do
     test "should receive invalid json message", ctx do
       @module.websocket_handle({:text, "%{not json}"}, ctx.state)
 
-      assert_received %Message{data: %{description: "Invalid JSON", details: _}, event: "error"}
+      encoded =
+        %Message{data: %{description: "Invalid JSON", details: "%{not json}"}, event: "error"}
+        |> Jason.encode!()
+
+      received = {:message, encoded}
+      assert_received ^received
     end
   end
 
   describe "handle info" do
-    test "with DOWN message should return {:stop, state}", ctx do
+    test "with DOWN message should :stop message", ctx do
       message = {:DOWN, make_ref(), :process, self(), :exit_reason}
-      assert @module.websocket_info(message, ctx.state) == {:stop, ctx.state}
+      @module.websocket_info(message, ctx.state)
+      assert_receive :stop
     end
 
     test "with DOWN message should receive message about roon closing", ctx do
       message = {:DOWN, make_ref(), :process, self(), :exit_reason}
       @module.websocket_info(message, ctx.state)
-      assert_receive %Message{event: "room_closed", data: %{reason: :exit_reason}}
+
+      encoded =
+        %Message{event: "error", data: %{description: "Room closed", details: :exit_reason}}
+        |> Jason.encode!()
+
+      received = {:message, encoded}
+      assert_receive ^received
     end
   end
 end

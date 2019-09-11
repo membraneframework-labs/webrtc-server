@@ -3,7 +3,7 @@ defmodule Example.Room do
   use Membrane.WebRTC.Server.Room
 
   @impl true
-  def authorize(auth_data, state) do
+  def on_join(auth_data, state) do
     username = auth_data.credentials.username
     password = auth_data.credentials.password
 
