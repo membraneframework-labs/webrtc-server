@@ -7,6 +7,7 @@ defmodule Membrane.WebRTC.Server.MixProject do
   def project do
     [
       app: :membrane_webrtc_server,
+      aliases: [docs: ["docs", &copy_images/1]],
       name: "WebRTC Server",
       version: @version,
       elixir: "~> 1.9",
@@ -53,6 +54,11 @@ defmodule Membrane.WebRTC.Server.MixProject do
       mod: {Membrane.WebRTC.Server, []},
       extra_applications: []
     ]
+  end
+
+  defp copy_images(_) do
+    File.cp_r("assets", "doc/assets", fn _source, _destination -> true end)
+    # File.cp_r("doc", "docs", fn _source, _destination -> true end)
   end
 
   defp elixirc_paths(:test), do: ["lib", "test"]

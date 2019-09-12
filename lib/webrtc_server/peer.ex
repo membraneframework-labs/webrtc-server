@@ -7,6 +7,12 @@ defmodule Membrane.WebRTC.Server.Peer do
 
   Implementation of 
   [`Cowboy WebSocket`](https://ninenines.eu/docs/en/cowboy/2.6/manual/cowboy_websocket/).
+
+  ## Initialisation
+  ![](assets/images/init.png)
+
+  ## Sending messae
+  ![](assets/images/send.png)
   """
 
   @behaviour :cowboy_websocket
