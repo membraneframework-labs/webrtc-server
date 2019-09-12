@@ -3,7 +3,7 @@ defmodule Membrane.WebRTC.Server.RoomTest do
 
   alias Membrane.WebRTC.Server.Message
   alias Membrane.WebRTC.Server.Room.State
-  alias Membrane.WebRTC.Server.Support.{MockRoom, RoomHelper}
+  alias Membrane.WebRTC.Server.Support.{MockRoom, RoomHelper, MockSupervisor}
 
   @module Membrane.WebRTC.Server.Room
 
@@ -81,10 +81,34 @@ defmodule Membrane.WebRTC.Server.RoomTest do
     end
   end
 
+  describe "create" do
+    test "should start room under Server.RoomSupervisor" do
+      start_supervised(MockSupervisor)
+
+      assert {:ok, pid} = @module.create("create_test", MockRoom)
+
+      assert DynamicSupervisor.which_children(Server.RoomSupervisor) == [
+               {:undefined, pid, :worker, [Membrane.WebRTC.Server.Room]}
+             ]
+
+      @module.stop(pid)
+    end
+  end
+
   describe "init" do
-    test "registry itself" do
-      {:ok, pid} = @module.start_link(%{name: "name", module: MockRoom})
+    test "should registry itself" do
+      assert {:ok, pid} = @module.start_link(%{name: "name", module: MockRoom})
       assert Registry.lookup(Server.Registry, "name") == [{pid, nil}]
+      @module.stop(pid)
+    end
+  end
+
+  describe "stop" do
+    test "should terminate process" do
+      assert {:ok, pid} = @module.start_link(%{name: "name", module: MockRoom})
+      @module.stop(pid)
+      Process.sleep(5)
+      refute Process.alive?(pid)
     end
   end
 

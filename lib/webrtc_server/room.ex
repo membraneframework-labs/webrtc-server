@@ -111,7 +111,7 @@ defmodule Membrane.WebRTC.Server.Room do
   @callback on_terminate(state :: internal_state()) :: :ok
 
   @doc """
-  Starts Room based on given module, registers it in Server.Registry
+  Starts Room based on given module, registers itself in Server.Registry
   (under given name) and links it to current process.
 
   Args are passed to module's `c:on_init/1` callback.

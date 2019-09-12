@@ -23,7 +23,7 @@ defmodule Membrane.WebRTC.Server.Peer do
   Callback invoked to extract credentials and metadata from request.
 
   Credentials and metadata will be used to create `AuthData` passed to
-  `c:authenticate/2` and `c:Room.authorize/2`.
+  `c:authenticate/2` and `c:Room.on_join/2`.
 
   Returning `{:error, details}` will cause aborting initialization of WebSocket
   and returning reply with 400 status code and the same request as given.
@@ -44,7 +44,7 @@ defmodule Membrane.WebRTC.Server.Peer do
   """
   @callback parse_auth_request(request :: :cowboy_req.req()) ::
               {:ok, credentials :: map(), metadata :: any(), room_name :: String.t()}
-              | {:error, details :: any()}
+              | {:error, cause :: any()}
 
   @doc """
   Callback invoked when peer is started.
@@ -74,7 +74,7 @@ defmodule Membrane.WebRTC.Server.Peer do
               state :: internal_state()
             ) ::
               {:ok, state :: internal_state()}
-              | {:error, details :: any}
+              | {:error, cause :: any}
 
   @doc """
   Callback invoked after successful decoding received JSON message.
@@ -131,7 +131,7 @@ defmodule Membrane.WebRTC.Server.Peer do
            callback_exec(:parse_auth_request, [request], options, peer_id),
          {:ok, websocket_options, internal_state} <-
            callback_exec(:on_init, [%Context{peer_id: peer_id, room: room}], options),
-         state <- %State{
+         state = %State{
            module: options.module,
            room: room,
            peer_id: peer_id,
@@ -236,13 +236,9 @@ defmodule Membrane.WebRTC.Server.Peer do
   end
 
   defp callback_exec(:on_init, args, options) do
-    case apply_callback(:on_init, args, options) do
-      {:ok, websocket_options, internal_state} ->
-        {:ok, websocket_options, internal_state}
-
-      {:ok, internal_state} ->
-        websocket_options = %{idle_timeout: 1000 * 60 * 15}
-        {:ok, websocket_options, internal_state}
+    with {:ok, internal_state} <- apply_callback(:on_init, args, options) do
+      websocket_options = %{idle_timeout: 1000 * 60 * 15}
+      {:ok, websocket_options, internal_state}
     end
   end
 

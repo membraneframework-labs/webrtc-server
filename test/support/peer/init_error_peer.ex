@@ -1,4 +1,4 @@
-defmodule Membrane.WebRTC.Server.Support.ErrorPeer do
+defmodule Membrane.WebRTC.Server.Support.InitErrorPeer do
   @moduledoc false
 
   use Membrane.WebRTC.Server.Peer

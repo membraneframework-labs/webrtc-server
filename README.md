@@ -2,12 +2,6 @@
 
 An Elixir signaling server for WebRTC based on [`Cowboy WebSocket`](https://ninenines.eu/docs/en/cowboy/2.6/manual/cowboy_websocket/). Consists of two main parts: Peer and Room.
 
-## Peer
-Implementation of Cowboy WebSocket. Communicates with client via JSON messages.
-
-## Room
-Implementation of `GenServer`. Responsible for exchanging messages between peers.
-
 ## Example application
 Example application based on [`Plug`](https://hexdocs.pm/plug/) can be found [here](https://github.com/membraneframework/webrtc-server/tree/master/example).
 

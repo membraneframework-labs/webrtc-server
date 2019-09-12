@@ -3,17 +3,15 @@ defmodule Membrane.WebRTC.Server.PeerTest do
 
   alias Membrane.WebRTC.Server.Message
   alias Membrane.WebRTC.Server.Peer
-  alias Membrane.WebRTC.Server.{Peer.Options, Peer.State}
-  alias Membrane.WebRTC.Server.{Support.CustomPeer, Support.ErrorPeer, Support.MockPeer}
+  alias Membrane.WebRTC.Server.Peer.{Options, State}
+  alias Membrane.WebRTC.Server.Support.{CustomPeer, InitErrorPeer, MockPeer, ParseErrorPeer}
 
   @module Peer
 
   setup_all do
     Application.start(:logger)
     Logger.configure(level: :error)
-  end
 
-  setup do
     [
       state: %State{
         room: "room",
@@ -31,10 +29,16 @@ defmodule Membrane.WebRTC.Server.PeerTest do
   end
 
   describe "init" do
-    test "should return request with 403 status code when callback authenticate return {:error, reason}",
+    test "should return request with 400 status code when callback parse_auth_request return {:error, reason}",
          ctx do
-      assert @module.init(ctx.mock_request, %Options{module: ErrorPeer}) ==
-               {:ok, :cowboy_req.reply(403, ctx.mock_request), %{}}
+      assert @module.init(ctx.mock_request, %Options{module: ParseErrorPeer}) ==
+               {:ok, :cowboy_req.reply(400, ctx.mock_request), %{}}
+    end
+
+    test "should return request with 401 status code when callback authenticate return {:error, reason}",
+         ctx do
+      assert @module.init(ctx.mock_request, %Options{module: InitErrorPeer}) ==
+               {:ok, :cowboy_req.reply(401, ctx.mock_request), %{}}
     end
 
     test "should initialize websocket after successful authentication", ctx do

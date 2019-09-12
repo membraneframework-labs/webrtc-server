@@ -2,7 +2,7 @@ defmodule Membrane.WebRTC.Server.Peer.AuthData do
   @moduledoc """
   Structure representing data required to perform authorization when Peer is joining Room.
 
-  Metadata and credentials are extracted via `c:parse_auth_request/1`. 
+  Metadata and credentials are extracted via `c:Membrane.WebRTC.Server.Peer.parse_auth_request/1`. 
   """
   @derive {Inspect, only: [:peer_id]}
   @enforce_keys [:peer_id, :credentials]

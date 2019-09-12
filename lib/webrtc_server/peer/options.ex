@@ -3,12 +3,14 @@ defmodule Membrane.WebRTC.Server.Peer.Options do
   Structure representing initial peer options passed as `state` to
   `cowboy_websocket.init/1` callback.
 
-  Value under key `custom_options` will be passed as options to
-  `c:Membrane.WebRTC.Server.Peer.on_init/2` callback.
+  ## Module
+  Custom module implementing Membrane.WebRTC.Server.Peer callbacks.
+
+  ## Custom Options
+  Options passed to `c:Membrane.WebRTC.Server.Peer.on_init/2` callback.
   """
   @enforce_keys [:module]
-  defstruct [:custom_options, room_module: Membrane.WebRTC.Server.Peer.DefaultRoom] ++
-              @enforce_keys
+  defstruct [:custom_options] ++ @enforce_keys
 
   @type t :: %__MODULE__{
           module: module(),

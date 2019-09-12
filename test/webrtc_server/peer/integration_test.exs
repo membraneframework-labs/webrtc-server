@@ -3,7 +3,13 @@ defmodule Membrane.WebRTC.Server.IntegrationTest do
 
   alias Membrane.WebRTC.Server.{Message, Peer, Room}
   alias Membrane.WebRTC.Server.Peer.{AuthData, State}
-  alias Membrane.WebRTC.Server.{Support.CustomPeer, Support.MockPeer, Support.RoomHelper}
+
+  alias Membrane.WebRTC.Server.Support.{
+    CustomPeer,
+    ErrorRoom,
+    MockPeer,
+    RoomHelper
+  }
 
   @module Membrane.WebRTC.Server.Peer
 
@@ -11,12 +17,6 @@ defmodule Membrane.WebRTC.Server.IntegrationTest do
     Application.start(:logger)
     Registry.start_link(keys: :unique, name: Server.Registry)
     Logger.configure(level: :error)
-  end
-
-  setup do
-    child_options = {Room, %{name: "room", module: Peer.DefaultRoom}}
-    {:ok, pid} = start_supervised(child_options)
-    insert_peers(10, pid, true)
 
     authorised = %State{
       room: "room",
@@ -30,9 +30,16 @@ defmodule Membrane.WebRTC.Server.IntegrationTest do
 
     [
       authorised_state: authorised,
-      unauthorised_state: unauthorised,
-      room_pid: pid
+      unauthorised_state: unauthorised
     ]
+  end
+
+  setup do
+    child_options = {Room, %{name: "room", module: Peer.DefaultRoom}}
+    {:ok, pid} = start_supervised(child_options)
+    insert_peers(10, pid, true)
+
+    [room_pid: pid]
   end
 
   describe "websocket_init" do
@@ -52,6 +59,27 @@ defmodule Membrane.WebRTC.Server.IntegrationTest do
       assert is_pid(room_pid)
       assert Process.alive?(room_pid)
       assert Room.send_message(room_pid, %Message{event: "ping", to: "test_peer"}) == :ok
+    end
+
+    test "should receive error message and :stop when Room.join fail", ctx do
+      stop_supervised(Room)
+      child_options = {Room, %{name: "error_room", module: ErrorRoom}}
+      {:ok, pid} = start_supervised(child_options)
+
+      state = %State{ctx.unauthorised_state | room: "error_room"}
+      assert @module.websocket_init(state) == {:ok, state}
+      assert_receive :stop
+
+      encoded =
+        %Message{
+          event: "error",
+          data: %{description: "Could not join room", details: "this_is_supposed_to_fail"}
+        }
+        |> Jason.encode!()
+
+      received = {:message, encoded}
+
+      assert_receive ^received
     end
   end
 
