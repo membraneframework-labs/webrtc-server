@@ -1,4 +1,5 @@
 defmodule Membrane.WebRTC.Server.Support.MockSupervisor do
+  @moduledoc false
   use DynamicSupervisor
 
   def start_link(init_arg) do

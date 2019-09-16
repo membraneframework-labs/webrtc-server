@@ -3,7 +3,7 @@ defmodule Membrane.WebRTC.Server.RoomTest do
 
   alias Membrane.WebRTC.Server.Message
   alias Membrane.WebRTC.Server.Room.State
-  alias Membrane.WebRTC.Server.Support.{MockRoom, RoomHelper, MockSupervisor}
+  alias Membrane.WebRTC.Server.Support.{MockRoom, MockSupervisor, RoomHelper}
 
   @module Membrane.WebRTC.Server.Room
 

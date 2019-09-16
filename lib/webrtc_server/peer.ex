@@ -2,16 +2,31 @@ defmodule Membrane.WebRTC.Server.Peer do
   @moduledoc """
   Module that manages websocket lifecycle and communication with client.
 
-  Every message received from client must be JSON matching 
-  `Membrane.WebRTC.Server.Message` struct. 
-
   Implementation of 
   [`Cowboy WebSocket`](https://ninenines.eu/docs/en/cowboy/2.6/manual/cowboy_websocket/).
 
   ## Initialisation
+
+  After receiveing request, Peer will parse it via `c:parse_auth_request/1` callback. 
+  Then, state is initialized in `c:on_init/2`. After that authentication is performed with
+  `AuthData` extracted from request. Finally, WebSocket is initialized.
+
+  After successful initialization, Peer will try to join the Room. 
+  Authorization (with the same `AuthData`) or other checks
+  can be performed in `Room.on_join/3` callback. After that, Peer is ready to fulfill its tasks.
+
   ![](assets/images/init.png)
 
-  ## Sending messae
+  ## Sending message
+
+  Every JSON message received from the client will be decoded into Message struct.
+  Then it will be sent to Room where it will be passed to Peer specified 
+  under `to` message's field.
+
+  The Message can be modyfied or ignored both by Peer and Room using `on_send` callbacks.
+  Addressee peer, after receiving the message will encode it back to JSON
+  and send it to its client.
+
   ![](assets/images/send.png)
   """
 
