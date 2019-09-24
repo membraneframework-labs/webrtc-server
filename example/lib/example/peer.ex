@@ -5,7 +5,7 @@ defmodule Example.Peer do
   require Logger
 
   @impl true
-  def parse_auth_request(request) do
+  def parse_request(request) do
     room = :cowboy_req.binding(:room, request)
 
     if room == :undefined do

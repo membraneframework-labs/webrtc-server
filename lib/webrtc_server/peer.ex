@@ -2,18 +2,19 @@ defmodule Membrane.WebRTC.Server.Peer do
   @moduledoc """
   Module that manages websocket lifecycle and communication with client.
 
-  Implementation of 
-  [`Cowboy WebSocket`](https://ninenines.eu/docs/en/cowboy/2.6/manual/cowboy_websocket/).
+  [`:cowboy_websocket`](https://ninenines.eu/docs/en/cowboy/2.6/manual/cowboy_websocket/)
+  behaviour.
 
   ## Initialisation
 
-  After receiveing request, Peer will parse it via `c:parse_auth_request/1` callback. 
+  After receiving request, Peer should parse it via `c:parse_request/1` callback. 
   Then, state is initialized in `c:on_init/2`. After that authentication is performed with
-  `AuthData` extracted from request. Finally, WebSocket is initialized.
+  `Membrane.WebRTC.Server.AuthData` extracted from request. Finally, WebSocket is initialized.
 
   After successful initialization, Peer will try to join the Room. 
-  Authorization (with the same `AuthData`) or other checks
-  can be performed in `Room.on_join/3` callback. After that, Peer is ready to fulfill its tasks.
+  Authorization (with the same `Membrane.WebRTC.Server.AuthData`) or other checks
+  can be performed in `c:Membrane.WebRTC.Server.Room.on_join/3` callback.
+  After that, Peer is ready to fulfill its tasks.
 
   ![](assets/images/init.png)
 
@@ -23,7 +24,7 @@ defmodule Membrane.WebRTC.Server.Peer do
   Then it will be sent to Room where it will be passed to Peer specified 
   under `to` message's field.
 
-  The Message can be modyfied or ignored both by Peer and Room using `on_send` callbacks.
+  The Message can be modified or ignored by both Peer and Room using `c:on_send/3` callbacks.
   Addressee peer, after receiving the message will encode it back to JSON
   and send it to its client.
 
@@ -36,20 +37,21 @@ defmodule Membrane.WebRTC.Server.Peer do
   alias Membrane.WebRTC.Server.{Message, Room}
 
   @typedoc """
-  Defines custom state of Peer, passed as argument and returned by callbacks. 
+  Defines custom state of a peer, passed as argument and returned by callbacks. 
   """
   @type internal_state :: any
 
   @doc """
   Callback invoked to extract credentials and metadata from request.
 
-  Credentials and metadata will be used to create `AuthData` passed to
+  Credentials and metadata will be used to create `Membrane.WebRTC.Server.AuthData` passed to
   `c:authenticate/2` and `c:Room.on_join/2`.
 
-  Returning `{:error, details}` will cause aborting initialization of WebSocket
-  and returning reply with 400 status code and the same request as given.
+  Returning `{:error, details}` will abort initialization of WebSocket
+  and return a response with status 400.
 
-  Peer will later try to join room with registered under `room_name`. If no such room can't be found, peer will send message
+  Peer will later try to join the room registered under `room_name`.
+  If no such room can't be found, peer will send message
   ```
   {
     "event": "error",
@@ -59,11 +61,11 @@ defmodule Membrane.WebRTC.Server.Peer do
     }
   }
   ```
-  to client and close WebSocket.
+  to the client and close WebSocket.
 
   This callback is optional.
   """
-  @callback parse_auth_request(request :: :cowboy_req.req()) ::
+  @callback parse_request(request :: :cowboy_req.req()) ::
               {:ok, credentials :: map(), metadata :: any(), room_name :: String.t()}
               | {:error, cause :: any()}
 
@@ -84,8 +86,8 @@ defmodule Membrane.WebRTC.Server.Peer do
   @doc """
   Callback invoked before initialization of WebSocket to confirm identity of client.
 
-  Returning `{:error, details}` will cause aborting initialization of WebSocket
-  and returning reply with 401 status code.
+  Returning `{:error, details}` will abort initialization of WebSocket
+  and return a response with status 401.
 
   This callback is optional.
   """
@@ -149,7 +151,7 @@ defmodule Membrane.WebRTC.Server.Peer do
     peer_id = UUID.uuid1()
 
     with {:ok, auth_data, room} <-
-           callback_exec(:parse_auth_request, [request], options, peer_id),
+           callback_exec(:parse_request, [request], options, peer_id),
          {:ok, websocket_options, internal_state} <-
            callback_exec(:on_init, [%Context{peer_id: peer_id, room: room}], options),
          state = %State{
@@ -240,8 +242,8 @@ defmodule Membrane.WebRTC.Server.Peer do
   @impl true
   def terminate(_reason, _req, _options), do: :ok
 
-  defp callback_exec(:parse_auth_request, args, options, peer_id) do
-    case apply_callback(:parse_auth_request, args, options) do
+  defp callback_exec(:parse_request, args, options, peer_id) do
+    case apply_callback(:parse_request, args, options) do
       {:ok, credentials, metadata, room} ->
         auth_data = %AuthData{
           credentials: credentials,
@@ -300,8 +302,8 @@ defmodule Membrane.WebRTC.Server.Peer do
     apply(options.module, :on_init, args)
   end
 
-  defp apply_callback(:parse_auth_request, args, options) do
-    apply(options.module, :parse_auth_request, args)
+  defp apply_callback(:parse_request, args, options) do
+    apply(options.module, :parse_request, args)
   end
 
   defp apply_callback(callback, args, state) do
@@ -371,7 +373,7 @@ defmodule Membrane.WebRTC.Server.Peer do
     quote location: :keep do
       @behaviour unquote(__MODULE__)
 
-      def parse_auth_request(request) do
+      def parse_request(request) do
         {:ok, %{}, nil, "room"}
       end
 
@@ -388,7 +390,7 @@ defmodule Membrane.WebRTC.Server.Peer do
       def on_terminate(_context, _state),
         do: :ok
 
-      defoverridable parse_auth_request: 1,
+      defoverridable parse_request: 1,
                      authenticate: 3,
                      on_init: 2,
                      on_send: 3,

@@ -22,7 +22,7 @@ defmodule Membrane.WebRTC.Server.Room do
   @type peer_id :: String.t()
 
   @typedoc """
-  Defines options that can be passed to `start_link/1` and `c:on_init/1` callback.
+  Defines options that can be passed to `c:start_link/1` and `c:on_init/1` callback.
   """
   @type room_options :: %{name: Registry.key(), module: module}
 
@@ -123,7 +123,7 @@ defmodule Membrane.WebRTC.Server.Room do
   end
 
   @doc """
-  Creates the room with given name and module under supervision of `Server.RoomSupervisor`. 
+  Creates the room with given name and module under supervision of `Membrane.WebRTC.Server.RoomSupervisor`. 
   """
   @spec create(room_name :: String.t(), module :: module()) :: DynamicSupervisor.on_start_child()
   def create(room_name, module) do

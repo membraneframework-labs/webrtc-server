@@ -28,11 +28,6 @@ defmodule Example.Application do
     Supervisor.start_link(children, opts)
   end
 
-  @impl true
-  def stop(_state) do
-    :ok
-  end
-
   defp dispatch do
     options = %Options{module: Example.Peer, custom_options: %{}}
 

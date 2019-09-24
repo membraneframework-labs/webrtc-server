@@ -1,7 +1,8 @@
 defmodule Membrane.WebRTC.Server.Peer.Options do
   @moduledoc """
   Structure representing initial peer options passed as `state` to
-  `cowboy_websocket.init/1` callback.
+  [`cowboy_websocket.init`](https://ninenines.eu/docs/en/cowboy/2.6/manual/cowboy_websocket/)
+  callback.
 
   ## Module
   Custom module implementing Membrane.WebRTC.Server.Peer callbacks.
