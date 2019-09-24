@@ -29,7 +29,7 @@ defmodule Example.Application do
   end
 
   defp dispatch do
-    options = %Options{module: Example.Peer, custom_options: %{}}
+    options = %Options{module: Example.Peer}
 
     [
       {:_,

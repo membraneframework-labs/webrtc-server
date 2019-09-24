@@ -45,7 +45,7 @@ defmodule Membrane.WebRTC.Server.Peer do
   Callback invoked to extract credentials and metadata from request.
 
   Credentials and metadata will be used to create `Membrane.WebRTC.Server.AuthData` passed to
-  `c:authenticate/2` and `c:Room.on_join/2`.
+  `c:on_init/2` and `c:Room.on_join/2`.
 
   Returning `{:error, details}` will abort initialization of WebSocket
   and return a response with status 400.
@@ -72,31 +72,24 @@ defmodule Membrane.WebRTC.Server.Peer do
   @doc """
   Callback invoked when peer is started.
 
-  Useful for setting up state and custom Cowboy WebSocket options, like timeout or maximal frame size.
+  Useful both for confirming identity of client, as well as setting up state and/or 
+  custom [Cowboy WebSocket](https://ninenines.eu/docs/en/cowboy/2.6/manual/cowboy_websocket/)
+  options, like timeout or maximal frame size.
 
-  This callback is optional.
-  """
-  @callback on_init(
-              context :: Context.t(),
-              options :: any()
-            ) ::
-              {:ok, state :: internal_state}
-              | {:ok, websocket_options :: :cowboy_websocket.opts(), state :: internal_state}
-
-  @doc """
-  Callback invoked before initialization of WebSocket to confirm identity of client.
+  Returning `{:ok, state}` will set up default WebSocket options with 1000 * 60 * 15 ms timeout. 
 
   Returning `{:error, details}` will abort initialization of WebSocket
   and return a response with status 401.
 
   This callback is optional.
   """
-  @callback authenticate(
-              auth_data :: AuthData.t(),
+  @callback on_init(
               context :: Context.t(),
-              state :: internal_state()
+              auth_data :: AuthData.t(),
+              options :: any()
             ) ::
-              {:ok, state :: internal_state()}
+              {:ok, state :: internal_state}
+              | {:ok, websocket_options :: :cowboy_websocket.opts(), state :: internal_state}
               | {:error, cause :: any}
 
   @doc """
@@ -148,21 +141,24 @@ defmodule Membrane.WebRTC.Server.Peer do
 
   @impl true
   def init(request, %Options{} = options) do
-    peer_id = UUID.uuid1()
+    peer_id = UUID.uuid4()
 
     with {:ok, auth_data, room} <-
            callback_exec(:parse_request, [request], options, peer_id),
          {:ok, websocket_options, internal_state} <-
-           callback_exec(:on_init, [%Context{peer_id: peer_id, room: room}], options),
-         state = %State{
-           module: options.module,
-           room: room,
-           peer_id: peer_id,
-           internal_state: internal_state,
-           auth_data: auth_data
-         },
-         {:ok, state} <-
-           callback_exec(:authenticate, [auth_data], state) do
+           callback_exec(
+             :on_init,
+             [%Context{peer_id: peer_id, room: room}, auth_data],
+             options
+           ) do
+      state = %State{
+        module: options.module,
+        room: room,
+        peer_id: peer_id,
+        internal_state: internal_state,
+        auth_data: auth_data
+      }
+
       {:cowboy_websocket, request, state, websocket_options}
     else
       {:error, {:could_not_parse, details}} ->
@@ -259,16 +255,13 @@ defmodule Membrane.WebRTC.Server.Peer do
   end
 
   defp callback_exec(:on_init, args, options) do
-    with {:ok, internal_state} <- apply_callback(:on_init, args, options) do
-      websocket_options = %{idle_timeout: 1000 * 60 * 15}
-      {:ok, websocket_options, internal_state}
-    end
-  end
-
-  defp callback_exec(:authenticate, args, state) do
-    case apply_callback(:authenticate, args, state) do
+    case apply_callback(:on_init, args, options) do
       {:ok, internal_state} ->
-        {:ok, %State{state | internal_state: internal_state}}
+        websocket_options = %{idle_timeout: 1000 * 60 * 15}
+        {:ok, websocket_options, internal_state}
+
+      {:ok, websocket_options, internal_state} ->
+        {:ok, websocket_options, internal_state}
 
       {:error, details} ->
         {:error, {:could_not_authenticate, details}}
@@ -377,10 +370,7 @@ defmodule Membrane.WebRTC.Server.Peer do
         {:ok, %{}, nil, "room"}
       end
 
-      def authenticate(auth_data, _context, state),
-        do: {:ok, state}
-
-      def on_init(_context, options) do
+      def on_init(_context, _auth_data, options) do
         {:ok, nil}
       end
 
@@ -391,8 +381,7 @@ defmodule Membrane.WebRTC.Server.Peer do
         do: :ok
 
       defoverridable parse_request: 1,
-                     authenticate: 3,
-                     on_init: 2,
+                     on_init: 3,
                      on_send: 3,
                      on_terminate: 2
     end

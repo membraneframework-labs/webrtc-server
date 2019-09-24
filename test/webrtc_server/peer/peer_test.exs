@@ -28,27 +28,27 @@ defmodule Membrane.WebRTC.Server.PeerTest do
     ]
   end
 
-  describe "init" do
-    test "should return request with 400 status code when callback parse_auth_request return {:error, reason}",
+  describe "init should" do
+    test "return request with 400 status code when callback parse_request return error tuple",
          ctx do
       assert @module.init(ctx.mock_request, %Options{module: ParseErrorPeer}) ==
                {:ok, :cowboy_req.reply(400, ctx.mock_request), %{}}
     end
 
-    test "should return request with 401 status code when callback authenticate return {:error, reason}",
+    test "return request with 401 status code when callback authenticate return {:error, reason}",
          ctx do
       assert @module.init(ctx.mock_request, %Options{module: InitErrorPeer}) ==
                {:ok, :cowboy_req.reply(401, ctx.mock_request), %{}}
     end
 
-    test "should initialize websocket after successful authentication", ctx do
+    test "initialize websocket after successful authentication", ctx do
       request = ctx.mock_request
 
       assert {:cowboy_websocket, request, %State{}, _} =
                @module.init(request, %Options{module: MockPeer})
     end
 
-    test "should return custom WebSocket options and initialize internal state correctly", ctx do
+    test "return custom WebSocket options and initialize internal state correctly", ctx do
       request = ctx.mock_request
 
       assert {:cowboy_websocket, request, %State{internal_state: :custom_internal_state},
@@ -57,21 +57,21 @@ defmodule Membrane.WebRTC.Server.PeerTest do
   end
 
   describe "handle frame" do
-    test "should answer with pong frame", ctx do
+    test "answer with pong frame", ctx do
       assert @module.websocket_handle(:ping, ctx.state) == {:reply, :pong, ctx.state}
     end
 
-    test "should answer with pong and data frame", ctx do
+    test "answer with pong and data frame", ctx do
       assert @module.websocket_handle({:ping, "data"}, ctx.state) ==
                {:reply, {:pong, "data"}, ctx.state}
     end
 
-    test "should answer with pong text", ctx do
+    test "answer with pong text", ctx do
       assert @module.websocket_handle({:text, "ping"}, ctx.state) ==
                {:reply, {:text, "pong"}, ctx.state}
     end
 
-    test "should receive invalid json message", ctx do
+    test "receive invalid json message", ctx do
       @module.websocket_handle({:text, "%{not json}"}, ctx.state)
 
       encoded =
@@ -83,14 +83,14 @@ defmodule Membrane.WebRTC.Server.PeerTest do
     end
   end
 
-  describe "handle info" do
-    test "with DOWN message should :stop message", ctx do
+  describe "handle info with DOWN message should receive " do
+    test ":stop message", ctx do
       message = {:DOWN, make_ref(), :process, self(), :exit_reason}
       @module.websocket_info(message, ctx.state)
       assert_receive :stop
     end
 
-    test "with DOWN message should receive message about roon closing", ctx do
+    test "message about room closing", ctx do
       message = {:DOWN, make_ref(), :process, self(), :exit_reason}
       @module.websocket_info(message, ctx.state)
 

@@ -7,34 +7,34 @@ defmodule Membrane.WebRTC.Server.RoomTest do
 
   @module Membrane.WebRTC.Server.Room
 
-  describe "handle_cast" do
-    test "should remove peer" do
+  describe "handle_cast should" do
+    test "remove peer" do
       assert @module.handle_cast({:leave, "peer_2"}, state(2)) == {:noreply, state(1)}
     end
 
-    test "should remove no peer" do
+    test "remove no peer" do
       assert @module.handle_cast({:leave, "peer_3"}, state(2)) == {:noreply, state(2)}
     end
 
-    test "shouldn't receive broadcasted message when broadcaster is given" do
+    test "not receive broadcasted message when broadcaster is given" do
       @module.handle_cast({:broadcast, :ping, "peer_1"}, state(10, BiMap.new(), true))
       refute_received :ping
     end
 
-    test "shouldn't change state nor send messages when broadcasting to empty room" do
+    test "not change state nor send messages when broadcasting to empty room" do
       assert @module.handle_cast({:broadcast, :ping}, state(0)) == {:noreply, state(0)}
       refute_received :ping
     end
   end
 
-  describe "handle_call: " do
-    test "should receive sent ping" do
+  describe "handle_call should" do
+    test "receive sent ping" do
       ping_message = %Message{event: "ping", to: "peer_1"}
       @module.handle_call({:send, ping_message}, self(), state(5, BiMap.new(), true))
       assert_received ping_message
     end
 
-    test "should not return :ok nor receive ping if peer not exists" do
+    test "not return :ok nor receive ping if peer not exists" do
       new_state = state(5, BiMap.new(), true)
       ping_message = %Message{event: "ping", to: "peer_-1"}
 
@@ -44,7 +44,7 @@ defmodule Membrane.WebRTC.Server.RoomTest do
       refute_received ^ping_message
     end
 
-    test "should add peer to room" do
+    test "add peer to room" do
       auth_data = RoomHelper.create_auth(2)
       pid = RoomHelper.generate_pid(2, false)
 
@@ -52,7 +52,7 @@ defmodule Membrane.WebRTC.Server.RoomTest do
                {:reply, :ok, state(2)}
     end
 
-    test "should add peer to room with many peers" do
+    test "add peer to room with many peers" do
       auth_data = RoomHelper.create_auth(150)
       pid = RoomHelper.generate_pid(150, false)
 
@@ -64,14 +64,14 @@ defmodule Membrane.WebRTC.Server.RoomTest do
                {:reply, :ok, state(150)}
     end
 
-    test "should add peer to empty room" do
+    test "add peer to empty room" do
       auth_data = RoomHelper.create_auth(1)
 
       assert @module.handle_call({:join, auth_data, self()}, self(), state(0)) ==
                {:reply, :ok, state(1)}
     end
 
-    test "should replace already existing peer" do
+    test "replace already existing peer" do
       pid = RoomHelper.generate_pid(5, true)
       state = %State{peers: BiMap.new(%{"peer_1" => pid}), module: MockRoom}
       auth_data = RoomHelper.create_auth(1)
@@ -81,8 +81,8 @@ defmodule Membrane.WebRTC.Server.RoomTest do
     end
   end
 
-  describe "create" do
-    test "should start room under Server.RoomSupervisor" do
+  describe "create should" do
+    test "start room under Server.RoomSupervisor" do
       start_supervised(MockSupervisor)
 
       assert {:ok, pid} = @module.create("create_test", MockRoom)
@@ -95,16 +95,16 @@ defmodule Membrane.WebRTC.Server.RoomTest do
     end
   end
 
-  describe "init" do
-    test "should registry itself" do
+  describe "init should" do
+    test "registry itself" do
       assert {:ok, pid} = @module.start_link(%{name: "name", module: MockRoom})
       assert Registry.lookup(Server.Registry, "name") == [{pid, nil}]
       @module.stop(pid)
     end
   end
 
-  describe "stop" do
-    test "should terminate process" do
+  describe "stop should" do
+    test "terminate process" do
       assert {:ok, pid} = @module.start_link(%{name: "name", module: MockRoom})
       @module.stop(pid)
       Process.sleep(5)
@@ -112,8 +112,8 @@ defmodule Membrane.WebRTC.Server.RoomTest do
     end
   end
 
-  describe "terminate" do
-    test "should unregistry itself and not cause Registry termination" do
+  describe "terminate should" do
+    test "unregistry itself and not cause Registry termination" do
       Application.start(:logger)
       auth_data = RoomHelper.create_auth("id")
 

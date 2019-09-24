@@ -4,7 +4,7 @@ defmodule Membrane.WebRTC.Server.Support.InitErrorPeer do
   use Membrane.WebRTC.Server.Peer
 
   @impl true
-  def authenticate(_auth_data, _context, _state) do
+  def on_init(_auth_data, _context, _state) do
     {:error, :this_is_supposed_to_fail}
   end
 end

@@ -19,18 +19,12 @@ defmodule Example.Peer do
   end
 
   @impl true
-  def on_init(_context, options) do
-    state = %{options: options}
-    {:ok, state}
-  end
-
-  @impl true
-  def authenticate(auth_data, _context, state) do
+  def on_init(_context, auth_data, _options) do
     username = auth_data.credentials.username
     password = auth_data.credentials.password
 
     if username != "" and password != "" do
-      state = state |> Map.put(:username, username)
+      state = %{username: username}
       {:ok, state}
     else
       {:error, :empty_credentials}

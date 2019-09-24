@@ -6,7 +6,7 @@ defmodule Membrane.WebRTC.Server.Support.CustomPeer do
   alias Membrane.WebRTC.Server.Message
 
   @impl true
-  def on_init(_ctx, _state) do
+  def on_init(_ctx, _auth_data, _state) do
     {:ok, %{idle_timeout: 20}, :custom_internal_state}
   end
 
