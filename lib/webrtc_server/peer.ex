@@ -24,7 +24,7 @@ defmodule Membrane.WebRTC.Server.Peer do
   Then it will be sent to Room where it will be passed to Peer specified 
   under `to` message's field.
 
-  The Message can be modified or ignored by both Peer and Room using `c:on_send/3` callbacks.
+  The Message can be modified or ignored by both Peer and Room using `c:on_receive/3` callbacks.
   Addressee peer, after receiving the message will encode it back to JSON
   and send it to its client.
 
@@ -100,7 +100,7 @@ defmodule Membrane.WebRTC.Server.Peer do
 
   This callback is optional.
   """
-  @callback on_send(message :: Message.t(), context :: Context.t(), state :: internal_state) ::
+  @callback on_receive(message :: Message.t(), context :: Context.t(), state :: internal_state) ::
               {:ok, message :: Message.t(), state :: internal_state}
               | {:ok, state :: internal_state}
 
@@ -268,8 +268,8 @@ defmodule Membrane.WebRTC.Server.Peer do
     end
   end
 
-  defp callback_exec(:on_send, [message], state) do
-    case apply_callback(:on_send, [message], state) do
+  defp callback_exec(:on_receive, [message], state) do
+    case apply_callback(:on_receive, [message], state) do
       {:ok, internal_state} ->
         {:ok, %State{state | internal_state: internal_state}}
 
@@ -333,7 +333,7 @@ defmodule Membrane.WebRTC.Server.Peer do
       |> Map.put(:from, state.peer_id)
 
     message = struct(Message, message)
-    callback_exec(:on_send, [message], state)
+    callback_exec(:on_receive, [message], state)
   end
 
   defp handle_message({:ok, _message}, state) do
@@ -374,7 +374,7 @@ defmodule Membrane.WebRTC.Server.Peer do
         {:ok, nil}
       end
 
-      def on_send(message, _context, state),
+      def on_receive(message, _context, state),
         do: {:ok, message, state}
 
       def on_terminate(_context, _state),
@@ -382,7 +382,7 @@ defmodule Membrane.WebRTC.Server.Peer do
 
       defoverridable parse_request: 1,
                      on_init: 3,
-                     on_send: 3,
+                     on_receive: 3,
                      on_terminate: 2
     end
   end

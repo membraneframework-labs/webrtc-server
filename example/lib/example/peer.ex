@@ -32,7 +32,7 @@ defmodule Example.Peer do
   end
 
   @impl true
-  def on_send(message, context, state) do
+  def on_receive(message, context, state) do
     Logger.info(
       "Sending message to peer #{message.to} from #{context.peer_id} in room #{context.room}"
     )
