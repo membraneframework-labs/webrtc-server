@@ -11,21 +11,21 @@ defmodule Membrane.WebRTC.Server.Support.CustomPeer do
   end
 
   @impl true
-  def on_send(%Message{event: "modify"} = message, _ctx, state) do
+  def on_receive(%Message{event: "modify"} = message, _ctx, state) do
     message = %Message{message | data: message.data <> "b"}
     {:ok, message, state}
   end
 
   @impl true
-  def on_send(%Message{event: "ignore"}, _ctx, state) do
+  def on_receive(%Message{event: "ignore"}, _ctx, state) do
     {:ok, state}
   end
 
-  def on_send(%Message{event: "just send it"} = message, _ctx, state) do
+  def on_receive(%Message{event: "just send it"} = message, _ctx, state) do
     {:ok, message, state}
   end
 
-  def on_send(%Message{event: "change state", data: new_state} = message, _ctx, _state) do
+  def on_receive(%Message{event: "change state", data: new_state} = message, _ctx, _state) do
     {:ok, message, new_state}
   end
 end

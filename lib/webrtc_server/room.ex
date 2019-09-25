@@ -83,24 +83,10 @@ defmodule Membrane.WebRTC.Server.Room do
 
   This callback is optional.
   """
-  @callback on_send(
+  @callback on_receive(
               message :: Message.t(),
               state :: internal_state()
             ) :: {:ok, internal_state()} | {:ok, Message.t(), internal_state()}
-
-  @doc """
-  Callback invoked before broadcasting message.
-  Room will broadcast message returned by this callback, ergo returning `{:ok, state}`
-  will cause ignoring message.
-
-  This callback is optional.
-  """
-  @callback on_broadcast(
-              message :: Message.t(),
-              broadcaster :: String.t() | nil,
-              state :: internal_state()
-            ) ::
-              {:ok, internal_state()} | {:ok, Message.t(), internal_state()}
 
   @doc """
   Callback invoked when room is shutting down.
@@ -123,7 +109,8 @@ defmodule Membrane.WebRTC.Server.Room do
   end
 
   @doc """
-  Creates the room with given name and module under supervision of `Membrane.WebRTC.Server.RoomSupervisor`. 
+  Creates the room with given name and module
+  under supervision of `Membrane.WebRTC.Server.RoomSupervisor`. 
   """
   @spec create(room_name :: String.t(), module :: module()) :: DynamicSupervisor.on_start_child()
   def create(room_name, module) do
@@ -157,6 +144,7 @@ defmodule Membrane.WebRTC.Server.Room do
   @spec leave(room :: pid(), peer_id :: peer_id) :: :ok
   def leave(room, peer_id) do
     GenServer.cast(room, {:leave, peer_id})
+    :ok
   end
 
   @doc """
@@ -168,8 +156,8 @@ defmodule Membrane.WebRTC.Server.Room do
           broadcaster :: peer_id
         ) :: :ok
   def broadcast(room, message, broadcaster) do
-    GenServer.cast(room, {:broadcast, message, broadcaster})
-    :ok
+    broadcasted_message = %Message{message | from: broadcaster}
+    broadcast(room, broadcasted_message)
   end
 
   @doc """
@@ -177,8 +165,8 @@ defmodule Membrane.WebRTC.Server.Room do
   """
   @spec broadcast(room :: pid(), message :: Message.t()) :: :ok
   def broadcast(room, message) do
-    GenServer.cast(room, {:broadcast, message})
-    :ok
+    broadcasted_message = %Message{message | to: "all"}
+    GenServer.call(room, {:send, broadcasted_message})
   end
 
   @doc """
@@ -216,8 +204,12 @@ defmodule Membrane.WebRTC.Server.Room do
   end
 
   @impl true
-  def handle_call({:send, message}, _from, state),
-    do: callback_exec(:on_send, [message], state)
+  def handle_call({:send, message}, _from, state) do
+    case try_send_message(message, state) do
+      {:ok, state} -> {:reply, :ok, state}
+      {:error, error} -> {:reply, {:error, error}, state}
+    end
+  end
 
   @impl true
   def handle_call({:join, auth_data, peer_pid}, _from, state) do
@@ -246,20 +238,12 @@ defmodule Membrane.WebRTC.Server.Room do
         |> Map.put(:internal_state, internal_state)
 
       message = %Message{event: "left", data: %{peer_id: peer_id}}
-      broadcast(self(), message)
+      send_to_all(message, state.peers)
       {:noreply, new_state}
     else
       {:noreply, state}
     end
   end
-
-  @impl true
-  def handle_cast({:broadcast, message}, state),
-    do: callback_exec(:on_broadcast, [message, nil], state)
-
-  @impl true
-  def handle_cast({:broadcast, message, broadcaster}, state),
-    do: callback_exec(:on_broadcast, [message, broadcaster], state)
 
   @impl true
   def handle_cast(:stop, state),
@@ -297,47 +281,57 @@ defmodule Membrane.WebRTC.Server.Room do
   defp callback_exec(:on_leave, args, state),
     do: apply(state.module, :on_leave, args ++ [state.internal_state])
 
-  defp callback_exec(:on_broadcast, [_msg, broadcaster] = args, state) do
-    case apply(state.module, :on_broadcast, args ++ [state.internal_state]) do
+  defp callback_exec(:on_receive, args, state) do
+    case apply(state.module, :on_receive, args ++ [state.internal_state]) do
       {:ok, internal_state} ->
-        {:noreply, %State{state | internal_state: internal_state}}
+        {:ok, %State{state | internal_state: internal_state}}
 
       {:ok, message, internal_state} ->
-        if broadcaster == nil do
-          Enum.each(state.peers, fn {_peer, pid} ->
-            Peer.send_to_client(pid, message)
-          end)
-        else
-          Enum.each(state.peers, fn {peer_id, pid} ->
-            if peer_id != broadcaster do
-              Peer.send_to_client(pid, message)
-            end
-          end)
-        end
-
-        {:noreply, %State{state | internal_state: internal_state}}
-    end
-  end
-
-  defp callback_exec(:on_send, args, state) do
-    case apply(state.module, :on_send, args ++ [state.internal_state]) do
-      {:ok, internal_state} ->
-        {:noreply, %State{state | internal_state: internal_state}}
-
-      {:ok, message, internal_state} ->
-        case state.peers[message.to] do
-          nil ->
-            {:reply, {:error, :no_such_peer}, %State{state | internal_state: internal_state}}
-
-          pid ->
-            Peer.send_to_client(pid, message)
-            {:reply, :ok, %State{state | internal_state: internal_state}}
-        end
+        {:ok, message, %State{state | internal_state: internal_state}}
     end
   end
 
   defp callback_exec(:on_terminate, args, state),
     do: apply(state.module, :on_terminate, args ++ [state.internal_state])
+
+  defp try_send_message(message, state) do
+    case callback_exec(:on_receive, [message], state) do
+      {:ok, state} ->
+        {:ok, state}
+
+      {:ok, %Message{to: "all"} = message, state} ->
+        send_to_all(message, state.peers)
+        {:ok, state}
+
+      {:ok, message, state} ->
+        case state.peers[message.to] do
+          nil ->
+            {:error, :no_such_peer}
+
+          pid ->
+            Peer.send_to_client(pid, message)
+            {:ok, state}
+        end
+    end
+  end
+
+  defp send_to_all(%Message{from: broadcaster} = message, peers) when not is_nil(broadcaster) do
+    peers
+    |> BiMap.delete_key(message.from)
+    |> Enum.each(fn {_peer_id, pid} ->
+      Peer.send_to_client(pid, message)
+    end)
+
+    :ok
+  end
+
+  defp send_to_all(message, peers) do
+    Enum.each(peers, fn {_peer_id, pid} ->
+      Peer.send_to_client(pid, message)
+    end)
+
+    :ok
+  end
 
   defmacro __using__(_) do
     quote location: :keep do
@@ -352,11 +346,7 @@ defmodule Membrane.WebRTC.Server.Room do
       def on_leave(_peer_id, state),
         do: {:ok, state}
 
-      def on_send(message, state) do
-        {:ok, message, state}
-      end
-
-      def on_broadcast(message, _from, state) do
+      def on_receive(message, state) do
         {:ok, message, state}
       end
 
@@ -366,8 +356,7 @@ defmodule Membrane.WebRTC.Server.Room do
       defoverridable on_init: 1,
                      on_join: 2,
                      on_leave: 2,
-                     on_send: 2,
-                     on_broadcast: 3,
+                     on_receive: 2,
                      on_terminate: 1
     end
   end

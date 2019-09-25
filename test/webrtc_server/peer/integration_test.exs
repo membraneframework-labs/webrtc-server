@@ -16,7 +16,7 @@ defmodule Membrane.WebRTC.Server.IntegrationTest do
   setup_all do
     Application.start(:logger)
     Registry.start_link(keys: :unique, name: Server.Registry)
-    Logger.configure(level: :error)
+    Logger.configure(level: :debug)
 
     authorised = %State{
       room: "room",

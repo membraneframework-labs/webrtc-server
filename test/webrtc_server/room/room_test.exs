@@ -17,13 +17,15 @@ defmodule Membrane.WebRTC.Server.RoomTest do
     end
 
     test "not receive broadcasted message when broadcaster is given" do
-      @module.handle_cast({:broadcast, :ping, "peer_1"}, state(10, BiMap.new(), true))
-      refute_received :ping
+      ping_message = %Message{event: "ping", to: "all"}
+      @module.handle_call({:send, ping_message}, nil, state(10, BiMap.new(), true))
+      refute_received ^ping_message
     end
 
     test "not change state nor send messages when broadcasting to empty room" do
-      assert @module.handle_cast({:broadcast, :ping}, state(0)) == {:noreply, state(0)}
-      refute_received :ping
+      ping_message = %Message{event: "ping", to: "all"}
+      assert @module.handle_call({:send, ping_message}, nil, state(0)) == {:reply, :ok, state(0)}
+      refute_received ^ping_message
     end
   end
 
