@@ -100,7 +100,7 @@ defmodule Membrane.WebRTC.Server.RoomTest do
   describe "init should" do
     test "registry itself" do
       assert {:ok, pid} = @module.start_link(%{name: "name", module: MockRoom})
-      assert Registry.lookup(Server.Registry, "name") == [{pid, nil}]
+      assert Registry.lookup(Membrane.WebRTC.Server.Registry, "name") == [{pid, nil}]
       @module.stop(pid)
     end
   end
@@ -124,8 +124,8 @@ defmodule Membrane.WebRTC.Server.RoomTest do
       @module.join(room_pid, auth_data, RoomHelper.generate_pid(0, false))
       assert :ok == GenServer.stop(room_pid, :normal)
       Process.sleep(20)
-      assert Registry.lookup(Server.Registry, "mock") == [{mock_pid, nil}]
-      assert Registry.lookup(Server.Registry, "room") == []
+      assert Registry.lookup(Membrane.WebRTC.Server.Registry, "mock") == [{mock_pid, nil}]
+      assert Registry.lookup(Membrane.WebRTC.Server.Registry, "room") == []
     end
   end
 

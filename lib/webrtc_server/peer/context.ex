@@ -1,7 +1,13 @@
 defmodule Membrane.WebRTC.Server.Peer.Context do
   @moduledoc """
-  Structure representing state of `Membrane.WebRTC.Server.Peer` passed to every
+  Structure representing a state of peer passed to every
   (but `c:Membrane.WebRTC.Server.Peer.parse_request/1`) callback.
+
+  ## Room
+  Name of room process 
+
+  ## Peer ID
+  Unique identifier created automatically during peer initialization.
   """
 
   @enforce_keys [:room, :peer_id]

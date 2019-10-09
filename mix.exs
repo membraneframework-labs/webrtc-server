@@ -35,7 +35,11 @@ defmodule Membrane.WebRTC.Server.MixProject do
   def docs do
     [
       main: "readme",
-      extras: ["README.md"],
+      extras: [
+        "README.md",
+        "Initialization.md",
+        "Signaling.md"
+      ],
       nest_modules_by_prefix: [
         Membrane.WebRTC.Server.Peer,
         Membrane.WebRTC.Server.Room,
@@ -58,7 +62,6 @@ defmodule Membrane.WebRTC.Server.MixProject do
 
   defp copy_images(_) do
     File.cp_r("assets", "doc/assets", fn _source, _destination -> true end)
-    # File.cp_r("doc", "docs", fn _source, _destination -> true end)
   end
 
   defp elixirc_paths(:test), do: ["lib", "test"]

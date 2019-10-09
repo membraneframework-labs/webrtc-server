@@ -15,7 +15,7 @@ defmodule Membrane.WebRTC.Server.IntegrationTest do
 
   setup_all do
     Application.start(:logger)
-    Registry.start_link(keys: :unique, name: Server.Registry)
+    Registry.start_link(keys: :unique, name: Membrane.WebRTC.Server.Registry)
     Logger.configure(level: :debug)
 
     authorised = %State{
@@ -55,7 +55,7 @@ defmodule Membrane.WebRTC.Server.IntegrationTest do
 
       assert @module.websocket_init(state) == {:ok, after_init_state}
 
-      assert [{room_pid, nil}] = Registry.lookup(Server.Registry, "room")
+      assert [{room_pid, nil}] = Registry.lookup(Membrane.WebRTC.Server.Registry, "room")
       assert is_pid(room_pid)
       assert Process.alive?(room_pid)
       assert Room.send_message(room_pid, %Message{event: "ping", to: "test_peer"}) == :ok

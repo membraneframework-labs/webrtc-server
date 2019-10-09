@@ -22,7 +22,7 @@ defmodule Membrane.WebRTC.Server do
 
   def start(_type, _args) do
     children = [
-      Registry.child_spec(keys: :unique, name: Server.Registry),
+      Registry.child_spec(keys: :unique, name: Membrane.WebRTC.Server.Registry),
       Membrane.WebRTC.Server.RoomSupervisor
     ]
 

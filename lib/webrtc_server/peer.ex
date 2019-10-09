@@ -4,31 +4,6 @@ defmodule Membrane.WebRTC.Server.Peer do
 
   [`:cowboy_websocket`](https://ninenines.eu/docs/en/cowboy/2.6/manual/cowboy_websocket/)
   behaviour.
-
-  ## Initialisation
-
-  After receiving request, Peer should parse it via `c:parse_request/1` callback. 
-  Then, state is initialized in `c:on_init/2`. After that authentication is performed with
-  `Membrane.WebRTC.Server.AuthData` extracted from request. Finally, WebSocket is initialized.
-
-  After successful initialization, Peer will try to join the Room. 
-  Authorization (with the same `Membrane.WebRTC.Server.AuthData`) or other checks
-  can be performed in `c:Membrane.WebRTC.Server.Room.on_join/3` callback.
-  After that, Peer is ready to fulfill its tasks.
-
-  ![](assets/images/init.png)
-
-  ## Sending message
-
-  Every JSON message received from the client will be decoded into Message struct.
-  Then it will be sent to Room where it will be passed to Peer specified 
-  under `to` message's field.
-
-  The Message can be modified or ignored by both Peer and Room using `c:on_receive/3` callbacks.
-  Addressee peer, after receiving the message will encode it back to JSON
-  and send it to its client.
-
-  ![](assets/images/send.png)
   """
 
   @behaviour :cowboy_websocket
@@ -44,8 +19,9 @@ defmodule Membrane.WebRTC.Server.Peer do
   @doc """
   Callback invoked to extract credentials and metadata from request.
 
-  Credentials and metadata will be used to create `Membrane.WebRTC.Server.AuthData` passed to
-  `c:on_init/2` and `c:Room.on_join/2`.
+  After successfully parsing request `{:ok, credentials, metadata, room_name}` should be returned.
+  Credentials and metadata will be used to create `Membrane.WebRTC.Server.Peer.AuthData` passed to
+  `c:on_init/3` and `c:Membrane.WebRTC.Server.Room.on_join/2`.
 
   Returning `{:error, details}` will abort initialization of WebSocket
   and return a response with status 400.
@@ -62,26 +38,23 @@ defmodule Membrane.WebRTC.Server.Peer do
   }
   ```
   to the client and close WebSocket.
-
-  This callback is optional.
   """
   @callback parse_request(request :: :cowboy_req.req()) ::
               {:ok, credentials :: map(), metadata :: any(), room_name :: String.t()}
               | {:error, cause :: any()}
 
   @doc """
-  Callback invoked when peer is started.
+  Callback invoked when peer process is started.
 
   Useful both for confirming identity of client, as well as setting up state and/or 
   custom [Cowboy WebSocket](https://ninenines.eu/docs/en/cowboy/2.6/manual/cowboy_websocket/)
   options, like timeout or maximal frame size.
 
-  Returning `{:ok, state}` will set up default WebSocket options with 1000 * 60 * 15 ms timeout. 
+  Returning `{:ok, state}` will set up default WebSocket options
+  with 1000 \\* 60 \\* 15 ms timeout. 
 
   Returning `{:error, details}` will abort initialization of WebSocket
   and return a response with status 401.
-
-  This callback is optional.
   """
   @callback on_init(
               context :: Context.t(),
@@ -94,11 +67,9 @@ defmodule Membrane.WebRTC.Server.Peer do
 
   @doc """
   Callback invoked after successful decoding received JSON message.
-  Peer will proceed to send message returned by this callback to Room,
+  Peer will proceed to send message returned by this callback to room,
   ergo returning `{:ok, state}` will cause ignoring message.
   Useful for modyfing or ignoring messages.
-
-  This callback is optional.
   """
   @callback on_receive(message :: Message.t(), context :: Context.t(), state :: internal_state) ::
               {:ok, message :: Message.t(), state :: internal_state}
@@ -107,13 +78,16 @@ defmodule Membrane.WebRTC.Server.Peer do
   @doc """
   Callback invoked when peer is shutting down.
   Useful for any cleanup required.
-
-  This callback is optional.
   """
   @callback on_terminate(
               context :: Context.t(),
               state :: internal_state
             ) :: :ok
+
+  @optional_callbacks parse_request: 1,
+                      on_init: 3,
+                      on_receive: 3,
+                      on_terminate: 2
 
   defmodule DefaultRoom do
     @moduledoc false
@@ -327,12 +301,13 @@ defmodule Membrane.WebRTC.Server.Peer do
          {:ok, %{"event" => _event} = message},
          state
        ) do
-    message =
-      message
-      |> Bunch.Map.map_keys(fn string -> String.to_atom(string) end)
-      |> Map.put(:from, state.peer_id)
+    message = %Message{
+      data: message["data"],
+      event: message["event"],
+      from: state.peer_id,
+      to: message["to"]
+    }
 
-    message = struct(Message, message)
     callback_exec(:on_receive, [message], state)
   end
 
@@ -353,7 +328,7 @@ defmodule Membrane.WebRTC.Server.Peer do
   end
 
   defp get_room_pid(room) do
-    case Registry.lookup(Server.Registry, room) do
+    case Registry.lookup(Membrane.WebRTC.Server.Registry, room) do
       [{room_pid, _value}] when is_pid(room_pid) ->
         {:ok, room_pid}
 
