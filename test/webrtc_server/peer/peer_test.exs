@@ -1,20 +1,30 @@
 defmodule Membrane.WebRTC.Server.PeerTest do
-  use ExUnit.Case, async: true
+  use ExUnit.Case, async: false
 
   alias Membrane.WebRTC.Server.Message
-  alias Membrane.WebRTC.Server.Peer
+  alias Membrane.WebRTC.Server.Room
   alias Membrane.WebRTC.Server.Peer.{Options, State}
-  alias Membrane.WebRTC.Server.Support.{CustomPeer, InitErrorPeer, MockPeer, ParseErrorPeer}
 
-  @module Peer
+  alias Membrane.WebRTC.Server.Support.{
+    CustomPeer,
+    InitErrorPeer,
+    MockPeer,
+    MockRoom,
+    ParseErrorPeer
+  }
+
+  @module Membrane.WebRTC.Server.Peer
 
   setup_all do
     Application.start(:logger)
     Logger.configure(level: :error)
 
+    child_options = {Room, %{name: "room", module: MockRoom}}
+    {:ok, pid} = start_supervised(child_options)
+
     [
       state: %State{
-        room: "room",
+        room: pid,
         peer_id: "1",
         module: MockPeer,
         internal_state: nil,
@@ -80,26 +90,6 @@ defmodule Membrane.WebRTC.Server.PeerTest do
 
       received = {:message, encoded}
       assert_received ^received
-    end
-  end
-
-  describe "handle info with DOWN message should receive " do
-    test ":stop message", ctx do
-      message = {:DOWN, make_ref(), :process, self(), :exit_reason}
-      @module.websocket_info(message, ctx.state)
-      assert_receive :stop
-    end
-
-    test "message about room closing", ctx do
-      message = {:DOWN, make_ref(), :process, self(), :exit_reason}
-      @module.websocket_info(message, ctx.state)
-
-      encoded =
-        %Message{event: "error", data: %{description: "Room closed", details: :exit_reason}}
-        |> Jason.encode!()
-
-      received = {:message, encoded}
-      assert_receive ^received
     end
   end
 end

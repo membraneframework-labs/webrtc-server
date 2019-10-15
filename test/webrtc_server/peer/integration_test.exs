@@ -1,13 +1,14 @@
 defmodule Membrane.WebRTC.Server.IntegrationTest do
   use ExUnit.Case, async: false
 
-  alias Membrane.WebRTC.Server.{Message, Peer, Room}
+  alias Membrane.WebRTC.Server.{Message, Room}
   alias Membrane.WebRTC.Server.Peer.{AuthData, State}
 
   alias Membrane.WebRTC.Server.Support.{
     CustomPeer,
     ErrorRoom,
     MockPeer,
+    MockRoom,
     RoomHelper
   }
 
@@ -17,9 +18,15 @@ defmodule Membrane.WebRTC.Server.IntegrationTest do
     Application.start(:logger)
     Registry.start_link(keys: :unique, name: Membrane.WebRTC.Server.Registry)
     Logger.configure(level: :debug)
+  end
+
+  setup do
+    child_options = {Room, %{name: "room", module: MockRoom}}
+    {:ok, pid} = start_supervised(child_options)
+    insert_peers(10, pid, true)
 
     authorised = %State{
-      room: "room",
+      room: pid,
       peer_id: "peer_10",
       module: MockPeer,
       internal_state: %{},
@@ -30,16 +37,9 @@ defmodule Membrane.WebRTC.Server.IntegrationTest do
 
     [
       authorised_state: authorised,
-      unauthorised_state: unauthorised
+      unauthorised_state: unauthorised,
+      room_pid: pid
     ]
-  end
-
-  setup do
-    child_options = {Room, %{name: "room", module: Support.MockRoom}}
-    {:ok, pid} = start_supervised(child_options)
-    insert_peers(10, pid, true)
-
-    [room_pid: pid]
   end
 
   describe "websocket_init should" do
@@ -64,9 +64,9 @@ defmodule Membrane.WebRTC.Server.IntegrationTest do
     test "receive error message and :stop when Room.join fail", ctx do
       stop_supervised(Room)
       child_options = {Room, %{name: "error_room", module: ErrorRoom}}
-      {:ok, _pid} = start_supervised(child_options)
+      {:ok, pid} = start_supervised(child_options)
 
-      state = %State{ctx.unauthorised_state | room: "error_room"}
+      state = %State{ctx.unauthorised_state | room: pid}
       assert @module.websocket_init(state) == {:ok, state}
       assert_receive :stop
 
@@ -85,7 +85,7 @@ defmodule Membrane.WebRTC.Server.IntegrationTest do
 
   describe "handle frames should" do
     test "not change state if frames are correct messages", ctx do
-      correct_message = Jason.encode!(%{"to" => "peer_1", "data" => %{}})
+      correct_message = Jason.encode!(%Message{to: "peer_1", data: %{}, event: "test"})
 
       assert @module.websocket_handle({:text, correct_message}, ctx.authorised_state) ==
                {:ok, ctx.authorised_state}
@@ -149,6 +149,26 @@ defmodule Membrane.WebRTC.Server.IntegrationTest do
       assert @module.terminate(:normal, %{}, ctx.authorised_state) == :ok
       message = %Message{data: %{peer_id: "peer_10"}, event: "left"}
       received = {:message, message |> Jason.encode!()}
+      assert_receive ^received
+    end
+  end
+
+  describe "handle info with DOWN message should receive " do
+    test ":stop message", ctx do
+      message = {:DOWN, make_ref(), :process, ctx.room_pid, :exit_reason}
+      @module.websocket_info(message, ctx.authorised_state)
+      assert_receive :stop
+    end
+
+    test "message about room closing", ctx do
+      message = {:DOWN, make_ref(), :process, ctx.room_pid, :exit_reason}
+      @module.websocket_info(message, ctx.authorised_state)
+
+      encoded =
+        %Message{event: "error", data: %{description: "Room closed", details: :exit_reason}}
+        |> Jason.encode!()
+
+      received = {:message, encoded}
       assert_receive ^received
     end
   end

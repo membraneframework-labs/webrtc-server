@@ -21,11 +21,18 @@ defmodule Membrane.WebRTC.Server.Support.CustomPeer do
     {:ok, state}
   end
 
+  @impl true
   def on_receive(%Message{event: "just send it"} = message, _ctx, state) do
     {:ok, message, state}
   end
 
+  @impl true
   def on_receive(%Message{event: "change state", data: new_state} = message, _ctx, _state) do
     {:ok, message, new_state}
+  end
+
+  @impl true
+  def parse_request(_request) do
+    {:ok, %{}, nil, "room"}
   end
 end

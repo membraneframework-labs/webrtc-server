@@ -1,9 +1,10 @@
 defmodule Membrane.WebRTC.Server.RoomTest do
   use ExUnit.Case, async: true
 
-  alias Membrane.WebRTC.Server.Message
-  alias Membrane.WebRTC.Server.Room.State
-  alias Membrane.WebRTC.Server.Support.{MockRoom, MockSupervisor, RoomHelper}
+  alias Membrane.WebRTC.Server
+  alias Server.{Message, RoomSupervisor}
+  alias Server.Room.State
+  alias Server.Support.{MockRoom, MockSupervisor, RoomHelper}
 
   @module Membrane.WebRTC.Server.Room
 
@@ -84,12 +85,12 @@ defmodule Membrane.WebRTC.Server.RoomTest do
   end
 
   describe "create should" do
-    test "start room under Server.RoomSupervisor" do
+    test "start room under RoomSupervisor" do
       start_supervised(MockSupervisor)
 
       assert {:ok, pid} = @module.create("create_test", MockRoom)
 
-      assert DynamicSupervisor.which_children(Server.RoomSupervisor) == [
+      assert DynamicSupervisor.which_children(RoomSupervisor) == [
                {:undefined, pid, :worker, [Membrane.WebRTC.Server.Room]}
              ]
 
@@ -100,7 +101,7 @@ defmodule Membrane.WebRTC.Server.RoomTest do
   describe "init should" do
     test "registry itself" do
       assert {:ok, pid} = @module.start_link(%{name: "name", module: MockRoom})
-      assert Registry.lookup(Membrane.WebRTC.Server.Registry, "name") == [{pid, nil}]
+      assert Registry.lookup(Server.Registry, "name") == [{pid, nil}]
       @module.stop(pid)
     end
   end
@@ -124,8 +125,8 @@ defmodule Membrane.WebRTC.Server.RoomTest do
       @module.join(room_pid, auth_data, RoomHelper.generate_pid(0, false))
       assert :ok == GenServer.stop(room_pid, :normal)
       Process.sleep(20)
-      assert Registry.lookup(Membrane.WebRTC.Server.Registry, "mock") == [{mock_pid, nil}]
-      assert Registry.lookup(Membrane.WebRTC.Server.Registry, "room") == []
+      assert Registry.lookup(Server.Registry, "mock") == [{mock_pid, nil}]
+      assert Registry.lookup(Server.Registry, "room") == []
     end
   end
 
