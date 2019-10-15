@@ -27,10 +27,6 @@ defmodule Membrane.WebRTC.Server.Message do
     - `"Could not join room"`
     Sent after `c:Membrane.WebRTC.Server.Room.on_join/2` return `{:error, error}`.
 
-    - `"No such room"`
-    Sent after no room with name returned by `c:Membrane.WebRTC.Server.Peer.parse_request/1`
-    is registered in `Membrane.WebRTC.Server.Registry`.
-
     - `"Room closed"`
     Broadcasted to all peers in a room when the room's process is shutting down.
 

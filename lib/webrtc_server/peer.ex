@@ -119,8 +119,9 @@ defmodule Membrane.WebRTC.Server.Peer do
   def init(request, %Options{} = options) do
     peer_id = UUID.uuid4()
 
-    with {:ok, auth_data, room} <-
+    with {:ok, auth_data, room_name} <-
            callback_exec(:parse_request, [request], options, peer_id),
+         {:ok, room} <- get_room_pid(room_name),
          {:ok, websocket_options, internal_state} <-
            callback_exec(
              :on_init,
@@ -140,6 +141,11 @@ defmodule Membrane.WebRTC.Server.Peer do
       {:error, {:could_not_parse, details}} ->
         Logger.error("Could not parse auth request, details: #{inspect(details)}")
         reply = :cowboy_req.reply(400, request)
+        {:ok, reply, %{}}
+
+      {:error, {:no_such_room, room}} ->
+        Logger.error("Could not find room named #{room}")
+        reply = :cowboy_req.reply(404, request)
         {:ok, reply, %{}}
 
       {:error, {:init_failed, details}} ->
@@ -201,8 +207,13 @@ defmodule Membrane.WebRTC.Server.Peer do
   end
 
   @impl true
-  def websocket_info({:DOWN, _reference, :process, _pid, reason}, state) do
+  def websocket_info({:DOWN, _ref, :process, room, reason}, %State{room: room} = state) do
     stop_and_send_error(self(), "Room closed", reason)
+    {:ok, state}
+  end
+
+  @impl true
+  def websocket_info(_message, state) do
     {:ok, state}
   end
 
@@ -250,15 +261,8 @@ defmodule Membrane.WebRTC.Server.Peer do
         {:ok, %State{state | internal_state: internal_state}}
 
       {:ok, %Message{} = message, internal_state} ->
-        case get_room_pid(state.room) do
-          {:ok, room_pid} ->
-            Room.send_message(room_pid, message)
-            {:ok, %State{state | internal_state: internal_state}}
-
-          {:error, {:no_such_room, room}} ->
-            Logger.error("Could not find room named #{room}")
-            {:stop, state}
-        end
+        Room.send_message(state.room, message)
+        {:ok, %State{state | internal_state: internal_state}}
     end
   end
 
@@ -281,15 +285,13 @@ defmodule Membrane.WebRTC.Server.Peer do
   end
 
   defp join_room(state) do
-    with {:ok, room_pid} <- get_room_pid(state.room) do
-      case Room.join(room_pid, state.auth_data, self()) do
-        :ok ->
-          Process.monitor(room_pid)
-          :ok
+    case Room.join(state.room, state.auth_data, self()) do
+      :ok ->
+        Process.monitor(state.room)
+        :ok
 
-        {:error, error} ->
-          {:error, {:could_not_join_room, error}}
-      end
+      {:error, error} ->
+        {:error, {:could_not_join_room, error}}
     end
   end
 
@@ -344,7 +346,7 @@ defmodule Membrane.WebRTC.Server.Peer do
       @behaviour unquote(__MODULE__)
 
       def on_init(_context, _auth_data, options) do
-        {:ok, nil}
+        {:ok, options}
       end
 
       def on_receive(message, _context, state),
@@ -353,8 +355,7 @@ defmodule Membrane.WebRTC.Server.Peer do
       def on_terminate(_context, _state),
         do: :ok
 
-      defoverridable parse_request: 1,
-                     on_init: 3,
+      defoverridable on_init: 3,
                      on_receive: 3,
                      on_terminate: 2
     end
