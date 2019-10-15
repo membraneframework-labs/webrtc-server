@@ -7,6 +7,7 @@ defmodule Example do
       version: "0.1.0",
       elixir: "~> 1.9",
       start_permanent: Mix.env() == :prod,
+      aliases: aliases(),
       deps: deps()
     ]
   end
@@ -15,6 +16,12 @@ defmodule Example do
     [
       mod: {Example.Application, []},
       extra_applications: [:membrane_webrtc_server]
+    ]
+  end
+
+  defp aliases do
+    [
+      start: "run --no-halt"
     ]
   end
 

@@ -5,21 +5,17 @@ defmodule Membrane.WebRTC.Server do
   defmodule RoomSupervisor do
     use DynamicSupervisor
     @moduledoc false
-    def init(_) do
-      {:ok,
-       %{
-         strategy: :one_for_one,
-         intensity: 3,
-         max_children: :infinity,
-         period: 5,
-         extra_arguments: []
-       }}
+
+    @impl true
+    def init(_arg) do
+      DynamicSupervisor.init(strategy: :one_for_one)
     end
 
     def start_link(_arg),
-      do: DynamicSupervisor.start_link(__MODULE__, :ok, name: Server.RoomSupervisor)
+      do: DynamicSupervisor.start_link(__MODULE__, :ok, name: __MODULE__)
   end
 
+  @impl true
   def start(_type, _args) do
     children = [
       Registry.child_spec(keys: :unique, name: Membrane.WebRTC.Server.Registry),

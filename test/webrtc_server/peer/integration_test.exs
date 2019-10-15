@@ -35,7 +35,7 @@ defmodule Membrane.WebRTC.Server.IntegrationTest do
   end
 
   setup do
-    child_options = {Room, %{name: "room", module: Peer.DefaultRoom}}
+    child_options = {Room, %{name: "room", module: Support.MockRoom}}
     {:ok, pid} = start_supervised(child_options)
     insert_peers(10, pid, true)
 

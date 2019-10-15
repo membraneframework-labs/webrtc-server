@@ -6,7 +6,7 @@ defmodule Membrane.WebRTC.Server.Peer.State do
   defstruct @enforce_keys
 
   @type t :: %__MODULE__{
-          room: String.t(),
+          room: pid(),
           peer_id: String.t(),
           module: module(),
           auth_data: AuthData.t() | :already_authorised,

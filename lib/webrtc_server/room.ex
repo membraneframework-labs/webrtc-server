@@ -4,23 +4,23 @@ defmodule Membrane.WebRTC.Server.Room do
   or sending and broadcasting messages between peers. 
 
   In contrast to peers, which are initialized automatically after specific request, rooms 
-  have to be created explicitly (preferably by `Membrane.WebRTC.Server.Room.create/2` function).  
+  have to be created explicitly (preferably by `create/2` function).  
 
   Room is `GenServer` prepared to send messages between peers by storing their IDs and PIDs.
   """
 
   use GenServer
   require Logger
-  alias Membrane.WebRTC.Server.{Message, Peer}
+  alias Membrane.WebRTC.Server.{Message, Peer, RoomSupervisor}
   alias Membrane.WebRTC.Server.Peer.AuthData
 
   @typedoc """
-  Defines custom state of room, passed as argument and returned by callbacks. 
+  Defines a custom state of the room, passed as argument and returned by callbacks. 
   """
   @type internal_state :: any
 
   @typedoc """
-  Defines ID bound to PID when peer joins the room.
+  Defines ID bound to PID when a peer joins the room.
   """
   @type peer_id :: String.t()
 
@@ -36,23 +36,23 @@ defmodule Membrane.WebRTC.Server.Room do
     defstruct [:internal_state] ++ @enforce_keys
 
     @type t :: %__MODULE__{
-            peers: BiMap.t() | %BiMap{},
+            peers: BiMap.t(),
             module: module(),
             internal_state: Membrane.WebRTC.Server.Room.internal_state()
           }
   end
 
   @doc """
-  Callback invoked when room is created.
+  Callback invoked when a room is created.
   """
   @callback on_init(args :: room_options) :: {:ok, internal_state()}
 
   @doc """
-  Callback invoked when peer is about to join the room.
+  Callback invoked when a peer is about to join the room.
 
-  Usefull for authorizing or performing other checks (e.g. controling number of peers in room).
+  Useful for authorizing or performing other checks (e.g. controlling number of peers in room).
 
-  Returning `{:error, error}` will cause peer sending message
+  Returning `{:error, error}` will cause peer sending a message
   ```
   {
     "event": "error",
@@ -62,19 +62,20 @@ defmodule Membrane.WebRTC.Server.Room do
     }
   }
   ``` 
-  to client and closing WebSocket.
+  to the client and closing WebSocket.
   """
   @callback on_join(auth_data :: AuthData.t(), state :: internal_state()) ::
               {:ok, internal_state()} | {{:error, error :: atom()}, internal_state()}
 
   @doc """
-  Callback invoked when peer is leaving the room.
+  Callback invoked when a peer is leaving the room.
   """
   @callback on_leave(peer_id :: String.t(), state :: internal_state()) ::
               {:ok, internal_state()}
 
   @doc """
-  Callback invoked before sending message.
+  Callback invoked before sending a message.
+
   Room will send message returned by this callback, ergo returning `{:ok, state}`
   will cause ignoring message.
   """
@@ -84,14 +85,15 @@ defmodule Membrane.WebRTC.Server.Room do
             ) :: {:ok, internal_state()} | {:ok, Message.t(), internal_state()}
 
   @doc """
-  Callback invoked when room is shutting down.
+  Callback invoked when the room is shutting down.
+
   Useful for any cleanup required.
   """
   @callback on_terminate(state :: internal_state()) :: :ok
 
   @doc """
-  Starts room based on given module, registers it in Membrane.WebRTC.Server.Registry
-  (under given name) and links it to current process.
+  Starts a room based on the given module, registers it in `Membrane.WebRTC.Server.Registry`
+  (under the given name) and links it to the current process.
 
   Args are passed to module's `c:on_init/1` callback.
   """
@@ -102,18 +104,20 @@ defmodule Membrane.WebRTC.Server.Room do
   end
 
   @doc """
-  Creates the room with given name and module under supervision of 
+  Creates a room with the given name and module under supervision of 
   `Membrane.WebRTC.Server.RoomSupervisor`. 
   """
   @spec create(room_name :: String.t(), module :: module()) :: DynamicSupervisor.on_start_child()
   def create(room_name, module) do
     child_spec = {Membrane.WebRTC.Server.Room, %{name: room_name, module: module}}
-    DynamicSupervisor.start_child(Server.RoomSupervisor, child_spec)
+    DynamicSupervisor.start_child(RoomSupervisor, child_spec)
   end
 
   @doc """
-  Adds the peer to the room. Broadcasts message
-  (`%Message{event: "joined", data: %{peer_id: peer_id}}`) to other peers in the room. 
+  Adds the peer to the room. 
+
+  Broadcasts message (`%Message{event: "joined", data: %{peer_id: peer_id}}`) to other peers in
+  the room. 
   """
   @spec join(room :: pid(), auth_data :: AuthData.t(), peer_pid :: pid()) ::
           :ok | {:error, atom()} | {:error, {atom(), any()}}
@@ -130,9 +134,10 @@ defmodule Membrane.WebRTC.Server.Room do
   end
 
   @doc """
-  Removes the peer from the room. Broadcast message 
-  (`%Message{event: "left", data: %{peer_id: peer_id}}`) to other peers
-  if given peer was in the room. 
+  Removes the peer from the room. 
+
+  Broadcast message (`%Message{event: "left", data: %{peer_id: peer_id}}`) to other peers if 
+  given peer was in the room. 
   """
   @spec leave(room :: pid(), peer_id :: peer_id) :: :ok
   def leave(room, peer_id) do

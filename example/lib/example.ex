@@ -8,8 +8,7 @@ defmodule Example.Application do
   def start(_type, _args) do
     children = [
       Plug.Cowboy.child_spec(
-        # WebRTC over HTTP is possible, however Chrome and Firefox require HTTPS for getUserMedia()
-        scheme: :https,
+        scheme: Application.fetch_env!(:example, :scheme),
         plug: Example.Router,
         options: [
           dispatch: dispatch(),

@@ -1,7 +1,7 @@
 defmodule Membrane.WebRTC.Server.MixProject do
   use Mix.Project
 
-  @version "1.0.0"
+  @version "0.1.0"
   @github_url "https://github.com/membraneframework/webrtc-server"
 
   def project do
@@ -24,7 +24,7 @@ defmodule Membrane.WebRTC.Server.MixProject do
       {:uuid, "~> 1.1"},
       {:cowboy, "~> 2.6"},
       {:jason, "~> 1.1"},
-      {:dialyxir, "~> 0.5", only: [:dev], runtime: false},
+      {:dialyxir, "~> 1.0.0-rc.7", only: [:dev], runtime: false},
       {:credo, "~> 1.1.0", only: [:dev, :test], runtime: false},
       {:bimap, "~> 1.0"},
       {:ex_doc, "~> 0.21", only: :dev, runtime: false},
@@ -37,13 +37,11 @@ defmodule Membrane.WebRTC.Server.MixProject do
       main: "readme",
       extras: [
         "README.md",
-        "Initialization.md",
-        "Signaling.md"
+        "pages/Initialization.md",
+        "pages/Signaling.md"
       ],
       nest_modules_by_prefix: [
-        Membrane.WebRTC.Server.Peer,
-        Membrane.WebRTC.Server.Room,
-        Membrane.WebRTC.Server.Message
+        Membrane.WebRTC.Server
       ],
       groups_for_modules: [
         Peer: [~r/^Membrane.WebRTC.Server.Peer.*/],
