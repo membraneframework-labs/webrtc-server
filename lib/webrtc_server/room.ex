@@ -127,8 +127,7 @@ defmodule Membrane.WebRTC.Server.Room do
              room,
              {:join, auth_data, peer_pid}
            ) do
-      message = %Message{event: "joined", data: %{peer_id: auth_data.peer_id}}
-      broadcast(room, message, auth_data.peer_id)
+      broadcast(room, %{peer_id: auth_data.peer_id}, "joined", auth_data.peer_id)
       :ok
     end
   end
@@ -146,25 +145,27 @@ defmodule Membrane.WebRTC.Server.Room do
   end
 
   @doc """
-  Sends the message to every peer in the room except for broadcaster.
+  Sends the message created from data and event to every peer in the room except for the sender.
   """
   @spec broadcast(
           room :: pid(),
-          message :: Message.t(),
-          broadcaster :: peer_id
-        ) :: :ok
-  def broadcast(room, message, broadcaster) do
-    broadcasted_message = %Message{message | from: broadcaster}
-    broadcast(room, broadcasted_message)
+          data :: String.t() | map | nil,
+          event :: String.t(),
+          sender :: String.t()
+        ) :: :ok | {:error, any}
+  def broadcast(room, data, event, sender) do
+    message = %Message{data: data, event: event, from: sender, to: "all"}
+    send_message(room, message)
   end
 
   @doc """
-  Sends the message to every peer in the room.
+  Sends the message created from data and event to every peer in the room.
   """
-  @spec broadcast(room :: pid(), message :: Message.t()) :: :ok
-  def broadcast(room, message) do
-    broadcasted_message = %Message{message | to: "all"}
-    GenServer.call(room, {:send, broadcasted_message})
+  @spec broadcast(room :: pid(), data :: String.t() | map | nil, event :: String.t()) ::
+          :ok | {:error, any}
+  def broadcast(room, data, event) do
+    message = %Message{data: data, event: event, to: "all"}
+    send_message(room, message)
   end
 
   @doc """
@@ -181,9 +182,9 @@ defmodule Membrane.WebRTC.Server.Room do
         Logger.error("Could not find peer")
         {:error, :no_such_peer}
 
-      _ ->
-        Logger.error("Unknown error")
-        {:error, :unknown_error}
+      {:error, error} ->
+        Logger.error("Unknown error, details: #{inspect(error)}")
+        {:error, error}
     end
   end
 
@@ -313,9 +314,9 @@ defmodule Membrane.WebRTC.Server.Room do
     end
   end
 
-  defp send_to_all(%Message{from: broadcaster} = message, peers) when not is_nil(broadcaster) do
+  defp send_to_all(%Message{from: sender} = message, peers) when not is_nil(sender) do
     peers
-    |> BiMap.delete_key(message.from)
+    |> BiMap.delete_key(sender)
     |> Enum.each(fn {_peer_id, pid} ->
       Peer.send_to_client(pid, message)
     end)
