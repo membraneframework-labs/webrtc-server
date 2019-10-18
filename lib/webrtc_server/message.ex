@@ -6,8 +6,9 @@ defmodule Membrane.WebRTC.Server.Message do
     - `:data` - Main part of the message.
     - `:event` - Topic of the message.
     - `:from` - Peer ID of a sender.
-    - `:to` - Peer ID of an adresee. If this field is set to "all", all peers in room (expect for
-    the peer specified under `from` field) will receive this message. 
+  - `:to` - Peer ID of an adresee. If this field is set to "all", message will be broadcasted:
+  all peers in the room (expect for the peer specified under `from` field) will receive this 
+  message. 
 
   ## Events
 

@@ -88,7 +88,7 @@ defmodule Membrane.WebRTC.Server.RoomTest do
     test "start room under RoomSupervisor" do
       start_supervised(MockSupervisor)
 
-      assert {:ok, pid} = @module.create("create_test", MockRoom)
+      assert {:ok, pid} = @module.start_supervised("create_test", MockRoom)
 
       assert DynamicSupervisor.which_children(RoomSupervisor) == [
                {:undefined, pid, :worker, [Membrane.WebRTC.Server.Room]}

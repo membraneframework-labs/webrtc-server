@@ -1,12 +1,8 @@
 defmodule Membrane.WebRTC.Server.Room do
   @moduledoc """
-  Module containing functions for constructing rooms, adding or removing peers to them
-  or sending and broadcasting messages between peers. 
+  A behaviuor module for WebRTC room that manages peers and mediate in their communication.
 
-  In contrast to peers, which are initialized automatically after specific request, rooms 
-  have to be created explicitly (preferably by `create/2` function).  
-
-  Room is `GenServer` prepared to send messages between peers by storing their IDs and PIDs.
+  Rooms have to be created explicitly (preferably by `start_supervised/2` function).  
   """
 
   use GenServer
@@ -17,7 +13,7 @@ defmodule Membrane.WebRTC.Server.Room do
   @typedoc """
   Defines a custom state of the room, passed as argument and returned by callbacks. 
   """
-  @type internal_state :: any
+  @type internal_state :: any()
 
   @typedoc """
   Defines ID bound to PID when a peer joins the room.
@@ -74,12 +70,16 @@ defmodule Membrane.WebRTC.Server.Room do
               {:ok, internal_state()}
 
   @doc """
-  Callback invoked before sending a message.
+  Callback invoked before sending messages either to one or all peers.
+
+  This mean this callback will be invoked every time functions `send_message/2`, `broadcast/3`,
+  `broadcast/4` are called or the room broadcasts messages by itself (e.g. when peer joins
+  the room).
 
   Room will send message returned by this callback, ergo returning `{:ok, state}`
   will cause ignoring message.
   """
-  @callback on_receive(
+  @callback on_send(
               message :: Message.t(),
               state :: internal_state()
             ) :: {:ok, internal_state()} | {:ok, Message.t(), internal_state()}
@@ -107,8 +107,9 @@ defmodule Membrane.WebRTC.Server.Room do
   Creates a room with the given name and module under supervision of 
   `Membrane.WebRTC.Server.RoomSupervisor`. 
   """
-  @spec create(room_name :: String.t(), module :: module()) :: DynamicSupervisor.on_start_child()
-  def create(room_name, module) do
+  @spec start_supervised(room_name :: String.t(), module :: module()) ::
+          DynamicSupervisor.on_start_child()
+  def start_supervised(room_name, module) do
     child_spec = {Membrane.WebRTC.Server.Room, %{name: room_name, module: module}}
     DynamicSupervisor.start_child(RoomSupervisor, child_spec)
   end
@@ -162,7 +163,7 @@ defmodule Membrane.WebRTC.Server.Room do
   Sends the message created from data and event to every peer in the room.
   """
   @spec broadcast(room :: pid(), data :: String.t() | map | nil, event :: String.t()) ::
-          :ok | {:error, any}
+          :ok | {:error, any()}
   def broadcast(room, data, event) do
     message = %Message{data: data, event: event, to: "all"}
     send_message(room, message)
@@ -280,8 +281,8 @@ defmodule Membrane.WebRTC.Server.Room do
   defp callback_exec(:on_leave, args, state),
     do: apply(state.module, :on_leave, args ++ [state.internal_state])
 
-  defp callback_exec(:on_receive, args, state) do
-    case apply(state.module, :on_receive, args ++ [state.internal_state]) do
+  defp callback_exec(:on_send, args, state) do
+    case apply(state.module, :on_send, args ++ [state.internal_state]) do
       {:ok, internal_state} ->
         {:ok, %State{state | internal_state: internal_state}}
 
@@ -294,7 +295,7 @@ defmodule Membrane.WebRTC.Server.Room do
     do: apply(state.module, :on_terminate, args ++ [state.internal_state])
 
   defp try_send_message(message, state) do
-    case callback_exec(:on_receive, [message], state) do
+    case callback_exec(:on_send, [message], state) do
       {:ok, state} ->
         {:ok, state}
 
@@ -345,7 +346,7 @@ defmodule Membrane.WebRTC.Server.Room do
       def on_leave(_peer_id, state),
         do: {:ok, state}
 
-      def on_receive(message, state) do
+      def on_send(message, state) do
         {:ok, message, state}
       end
 
@@ -355,7 +356,7 @@ defmodule Membrane.WebRTC.Server.Room do
       defoverridable on_init: 1,
                      on_join: 2,
                      on_leave: 2,
-                     on_receive: 2,
+                     on_send: 2,
                      on_terminate: 1
     end
   end

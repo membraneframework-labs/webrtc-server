@@ -12,6 +12,6 @@ defmodule Membrane.WebRTC.Server.Peer.Options do
 
   @type t :: %__MODULE__{
           module: module(),
-          custom_options: any
+          custom_options: any()
         }
 end

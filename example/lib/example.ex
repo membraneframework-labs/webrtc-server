@@ -15,13 +15,14 @@ defmodule Example.Application do
           port: Application.fetch_env!(:example, :port),
           ip: Application.fetch_env!(:example, :ip),
           password: Application.fetch_env!(:example, :password),
-          otp_app: :example,
+          otp_app: Application.fetch_env!(:example, :otp_app),
           keyfile: Application.fetch_env!(:example, :keyfile),
           certfile: Application.fetch_env!(:example, :certfile)
         ]
-      ),
-      Room.child_spec(%{name: "room", module: Example.Room})
+      )
     ]
+
+    Room.start_supervised("room", Example.Room)
 
     opts = [strategy: :one_for_one, name: Example.Application]
     Supervisor.start_link(children, opts)
@@ -33,7 +34,7 @@ defmodule Example.Application do
     [
       {:_,
        [
-         {"/websocket/[:room]/[:username]/[:password]/", Membrane.WebRTC.Server.Peer, options},
+         {"/server/[:room]/[:username]/[:password]/", Membrane.WebRTC.Server.Peer, options},
          {:_, Plug.Cowboy.Handler, {Example.Router, []}}
        ]}
     ]

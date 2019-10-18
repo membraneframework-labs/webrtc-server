@@ -17,7 +17,7 @@ defmodule Membrane.WebRTC.Server.Peer do
   @typedoc """
   Defines custom state of a peer, passed as argument and returned by callbacks. 
   """
-  @type internal_state :: any
+  @type internal_state :: any()
 
   @doc """
   Callback invoked to extract credentials and metadata from request.
@@ -53,6 +53,9 @@ defmodule Membrane.WebRTC.Server.Peer do
   custom [Cowboy WebSocket](https://ninenines.eu/docs/en/cowboy/2.6/manual/cowboy_websocket/)
   options, like timeout or maximal frame size.
 
+  Options argument is value given under the `:custom_options` field in 
+  `Membrane.WebRTC.Server.Options`.
+
   Returning `{:ok, websocket_options, state}` will set up WebSocket options to the ones returned.
 
   Returning `{:ok, state}` will set up default WebSocket options with #{div(@timeout, 60000)} 
@@ -68,7 +71,7 @@ defmodule Membrane.WebRTC.Server.Peer do
             ) ::
               {:ok, state :: internal_state}
               | {:ok, websocket_options :: :cowboy_websocket.opts(), state :: internal_state}
-              | {:error, cause :: any}
+              | {:error, cause :: any()}
 
   @doc """
   Callback invoked after successful decoding received JSON message.
