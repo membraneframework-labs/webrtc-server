@@ -15,7 +15,7 @@ defmodule Example.Application do
           port: Application.fetch_env!(:example, :port),
           ip: Application.fetch_env!(:example, :ip),
           password: Application.fetch_env!(:example, :password),
-          otp_app: Application.fetch_env!(:example, :otp_app),
+          otp_app: :example,
           keyfile: Application.fetch_env!(:example, :keyfile),
           certfile: Application.fetch_env!(:example, :certfile)
         ]

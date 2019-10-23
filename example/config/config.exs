@@ -6,7 +6,6 @@ config :example,
   port: 8443,
   ip: {0, 0, 0, 0},
   password: "PASSWORD",
-  otp_app: :example,
   # Attach your SSL certificate and key files here
   keyfile: "priv/certs/key.pem",
   certfile: "priv/certs/certificate.pem"
