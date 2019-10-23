@@ -30,17 +30,8 @@ defmodule Membrane.WebRTC.Server.Peer do
   and return a response with status 400.
 
   Peer will later try to join the room registered under `room_name`.
-  If no such room can't be found, peer will send message
-  ```
-  {
-    "event": "error",
-    "data": {
-        "description": "No such room",
-        "details": room_name
-    }
-  }
-  ```
-  to the client and close WebSocket.
+  If no such room can't be found, peer will abort initialization of WebSocket 
+  and return a response with status 404.
   """
   @callback parse_request(request :: :cowboy_req.req()) ::
               {:ok, credentials :: map(), metadata :: any(), room_name :: String.t()}
