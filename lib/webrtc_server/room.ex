@@ -9,6 +9,7 @@ defmodule Membrane.WebRTC.Server.Room do
   require Logger
   alias Membrane.WebRTC.Server.{Message, Peer, RoomSupervisor}
   alias Membrane.WebRTC.Server.Peer.AuthData
+  alias Membrane.WebRTC.Server.Room.{DefaultRoom, State}
 
   @typedoc """
   Defines a custom state of the room, passed as argument and returned by callbacks. 
@@ -18,20 +19,7 @@ defmodule Membrane.WebRTC.Server.Room do
   @typedoc """
   Defines options that can be passed to `c:start_link/1` and `c:on_init/1` callback.
   """
-  @type room_options :: %{name: Registry.key(), module: module}
-
-  defmodule State do
-    @moduledoc false
-
-    @enforce_keys [:module, :peers]
-    defstruct [:internal_state] ++ @enforce_keys
-
-    @type t :: %__MODULE__{
-            peers: BiMap.t(),
-            module: module(),
-            internal_state: Membrane.WebRTC.Server.Room.internal_state()
-          }
-  end
+  @type room_options :: %{name: Registry.key(), module: module() | nil}
 
   @doc """
   Callback invoked when a room is created.
@@ -77,6 +65,12 @@ defmodule Membrane.WebRTC.Server.Room do
   """
   @callback on_terminate(state :: internal_state()) :: :ok
 
+  @optional_callbacks on_init: 1,
+                      on_join: 2,
+                      on_leave: 2,
+                      on_send: 2,
+                      on_terminate: 1
+
   @doc """
   Starts a room based on the given module, registers it in `Membrane.WebRTC.Server.Registry`
   (under the given name) and links it to the current process.
@@ -98,6 +92,15 @@ defmodule Membrane.WebRTC.Server.Room do
   def start_supervised(room_name, module) do
     child_spec = {Membrane.WebRTC.Server.Room, %{name: room_name, module: module}}
     DynamicSupervisor.start_child(RoomSupervisor, child_spec)
+  end
+
+  @doc """
+  Creates a room with the given name under supervision of `Membrane.WebRTC.Server.RoomSupervisor`. 
+  """
+  @spec start_supervised(room_name :: String.t()) ::
+          DynamicSupervisor.on_start_child()
+  def start_supervised(room_name) do
+    start_supervised(room_name, nil)
   end
 
   @doc """
@@ -182,6 +185,12 @@ defmodule Membrane.WebRTC.Server.Room do
   @spec stop(room :: pid()) :: :ok
   def stop(room) do
     GenServer.cast(room, :stop)
+  end
+
+  @impl true
+  def init(%{module: nil} = args) do
+    state = %State{peers: BiMap.new(), module: DefaultRoom}
+    callback_exec(:on_init, [args], state)
   end
 
   @impl true
