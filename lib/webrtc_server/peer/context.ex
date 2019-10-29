@@ -13,6 +13,6 @@ defmodule Membrane.WebRTC.Server.Peer.Context do
 
   @type t :: %__MODULE__{
           room: pid(),
-          peer_id: String.t()
+          peer_id: Membrane.WebRTC.Server.Peer.peer_id()
         }
 end

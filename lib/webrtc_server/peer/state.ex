@@ -7,7 +7,7 @@ defmodule Membrane.WebRTC.Server.Peer.State do
 
   @type t :: %__MODULE__{
           room: pid(),
-          peer_id: String.t(),
+          peer_id: Membrane.WebRTC.Server.Peer.peer_id(),
           module: module(),
           auth_data: AuthData.t() | :already_authorised,
           internal_state: Membrane.WebRTC.Server.Peer.internal_state()

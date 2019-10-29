@@ -15,6 +15,11 @@ defmodule Membrane.WebRTC.Server.Peer do
   @timeout 15 * 60 * 1000
 
   @typedoc """
+  Defines unique indetifier (UUIDv4) bound to peer.
+  """
+  @type peer_id :: String.t()
+
+  @typedoc """
   Defines custom state of a peer, passed as argument and returned by callbacks. 
   """
   @type internal_state :: any()

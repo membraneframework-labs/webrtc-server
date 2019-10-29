@@ -16,11 +16,6 @@ defmodule Membrane.WebRTC.Server.Room do
   @type internal_state :: any()
 
   @typedoc """
-  Defines ID bound to PID when a peer joins the room.
-  """
-  @type peer_id :: String.t()
-
-  @typedoc """
   Defines options that can be passed to `c:start_link/1` and `c:on_init/1` callback.
   """
   @type room_options :: %{name: Registry.key(), module: module}
@@ -48,17 +43,8 @@ defmodule Membrane.WebRTC.Server.Room do
 
   Useful for authorizing or performing other checks (e.g. controlling number of peers in room).
 
-  Returning `{:error, error}` will cause peer sending a message
-  ```
-  {
-    "event": "error",
-    "data": {
-        "description": "Could not join room",
-        "details": error
-    }
-  }
-  ``` 
-  to the client and closing WebSocket.
+  Returning `{:error, error}` will cause peer sending 
+  `t:Membrane.WebRTC.Server.Message.error_message/0` to the client and closing WebSocket.
   """
   @callback on_join(auth_data :: AuthData.t(), state :: internal_state()) ::
               {:ok, internal_state()} | {{:error, error :: atom()}, internal_state()}
@@ -66,7 +52,7 @@ defmodule Membrane.WebRTC.Server.Room do
   @doc """
   Callback invoked when a peer is leaving the room.
   """
-  @callback on_leave(peer_id :: String.t(), state :: internal_state()) ::
+  @callback on_leave(peer_id :: Peer.peer_id(), state :: internal_state()) ::
               {:ok, internal_state()}
 
   @doc """
@@ -117,8 +103,9 @@ defmodule Membrane.WebRTC.Server.Room do
   @doc """
   Adds the peer to the room. 
 
-  Broadcasts message (`%Message{event: "joined", data: %{peer_id: peer_id}}`) to other peers in
-  the room. 
+  `t:Membrane.WebRTC.Server.Message.joined_message/0` 
+  is broadcasted to other peers after peer successfully joins the room. See
+  [Initialization](initialization.html) for more info.
   """
   @spec join(room :: pid(), auth_data :: AuthData.t(), peer_pid :: pid()) ::
           :ok | {:error, atom()} | {:error, {atom(), any()}}
@@ -136,10 +123,10 @@ defmodule Membrane.WebRTC.Server.Room do
   @doc """
   Removes the peer from the room. 
 
-  Broadcast message (`%Message{event: "left", data: %{peer_id: peer_id}}`) to other peers if 
+  Broadcast `t:Membrane.WebRTC.Server.Message.left_message/0` to other peers if 
   given peer was in the room. 
   """
-  @spec leave(room :: pid(), peer_id :: peer_id) :: :ok
+  @spec leave(room :: pid(), peer_id :: Peer.peer_id()) :: :ok
   def leave(room, peer_id) do
     GenServer.cast(room, {:leave, peer_id})
     :ok

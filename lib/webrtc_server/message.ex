@@ -23,7 +23,7 @@ defmodule Membrane.WebRTC.Server.Message do
   """
 
   @derive Jason.Encoder
-  alias Membrane.WebRTC.Server.Room
+  alias Membrane.WebRTC.Server.Peer
 
   @enforce_keys [:event]
   defstruct @enforce_keys ++ [:data, :from, :to]
@@ -31,8 +31,8 @@ defmodule Membrane.WebRTC.Server.Message do
   @type t :: %__MODULE__{
           data: Jason.Encoder.t() | nil,
           event: String.t(),
-          from: String.t() | nil,
-          to: String.t() | nil
+          from: Peer.peer_id() | nil,
+          to: String.t() | Peer.peer_id() | nil
         }
 
   @typedoc """
@@ -43,8 +43,8 @@ defmodule Membrane.WebRTC.Server.Message do
   @type t(d) :: %__MODULE__{
           data: d,
           event: String.t(),
-          from: String.t() | nil,
-          to: String.t()
+          from: Peer.peer_id() | nil,
+          to: String.t() | Peer.peer_id() | nil
         }
 
   @typedoc """
@@ -58,11 +58,11 @@ defmodule Membrane.WebRTC.Server.Message do
   @type authenticated_message ::
           %__MODULE__{
             data: %{
-              peer_id: Room.peer_id()
+              peer_id: Peer.peer_id()
             },
             event: String.t(),
             from: nil,
-            to: String.t()
+            to: Peer.peer_id()
           }
 
   @typedoc """
@@ -91,7 +91,7 @@ defmodule Membrane.WebRTC.Server.Message do
           },
           event: String.t(),
           from: nil,
-          to: Room.peer_id()
+          to: Peer.peer_id()
         }
 
   @typedoc """
@@ -104,10 +104,10 @@ defmodule Membrane.WebRTC.Server.Message do
     - `:peer_id` - Identifier of the peer, that has joined the room.
   """
   @type joined_message :: %__MODULE__{
-          data: %{peer_id: Room.peer_id()},
+          data: %{peer_id: Peer.peer_id()},
           event: String.t(),
           from: nil,
-          to: String.t()
+          to: Peer.peer_id()
         }
 
   @typedoc """
@@ -119,9 +119,9 @@ defmodule Membrane.WebRTC.Server.Message do
     - `:peer_id` - Identifier of the peer, that has left the room.
   """
   @type left_message :: %__MODULE__{
-          data: %{peer_id: Room.peer_id()},
+          data: %{peer_id: Peer.peer_id()},
           event: String.t(),
           from: nil,
-          to: String.t()
+          to: Peer.peer_id()
         }
 end

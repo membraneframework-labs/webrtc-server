@@ -17,7 +17,7 @@ defmodule Membrane.WebRTC.Server.Peer.AuthData do
   defstruct @enforce_keys ++ [:metadata]
 
   @type t :: %__MODULE__{
-          peer_id: String.t(),
+          peer_id: Membrane.WebRTC.Server.Peer.peer_id(),
           credentials: map(),
           metadata: any()
         }
