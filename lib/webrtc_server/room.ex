@@ -188,9 +188,8 @@ defmodule Membrane.WebRTC.Server.Room do
   end
 
   @impl true
-  def init(%{module: nil} = args) do
-    state = %State{peers: BiMap.new(), module: DefaultRoom}
-    callback_exec(:on_init, [args], state)
+  def init(%{name: name, module: nil}) do
+    init(%{name: name, module: DefaultRoom})
   end
 
   @impl true
@@ -233,8 +232,8 @@ defmodule Membrane.WebRTC.Server.Room do
         |> Map.put(:peers, peers)
         |> Map.put(:internal_state, internal_state)
 
-      message = %Message{event: "left", data: %{peer_id: peer_id}}
-      send_to_all(message, state.peers)
+      message = %Message{event: "left", data: %{peer_id: peer_id}, to: "all"}
+      try_send_message(message, state)
       {:noreply, new_state}
     else
       {:noreply, state}
@@ -300,13 +299,11 @@ defmodule Membrane.WebRTC.Server.Room do
         {:ok, state}
 
       {:ok, message, state} ->
-        case state.peers[message.to] do
-          nil ->
-            {:error, :no_such_peer}
-
-          pid ->
-            Peer.send_to_client(pid, message)
-            {:ok, state}
+        with :ok <-
+               Bunch.Enum.try_each(message.to, fn peer ->
+                 send_to_peer(message, peer, state.peers)
+               end) do
+          {:ok, state}
         end
     end
   end
@@ -327,6 +324,17 @@ defmodule Membrane.WebRTC.Server.Room do
     end)
 
     :ok
+  end
+
+  defp send_to_peer(message, adressee, peers) do
+    case BiMap.get(peers, adressee) do
+      nil ->
+        {:error, :no_such_peer}
+
+      pid ->
+        Peer.send_to_client(pid, message)
+        :ok
+    end
   end
 
   defmacro __using__(_) do

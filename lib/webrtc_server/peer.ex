@@ -159,7 +159,13 @@ defmodule Membrane.WebRTC.Server.Peer do
     case join_room(state) do
       :ok ->
         state = %State{state | auth_data: :already_authorised}
-        message = %Message{event: "authenticated", data: %{peer_id: state.peer_id}}
+
+        message = %Message{
+          event: "authenticated",
+          data: %{peer_id: state.peer_id},
+          to: [state.peer_id]
+        }
+
         send_to_client(self(), message)
         {:ok, state}
 
@@ -167,7 +173,7 @@ defmodule Membrane.WebRTC.Server.Peer do
         error_log = to_string(error) |> String.replace("_", " ") |> String.capitalize()
         Logger.error("#{error_log}, details: #{inspect(details)}")
 
-        stop_and_send_error(self(), error_log, details)
+        stop_and_send_error(self(), error_log, details, state)
         {:ok, state}
     end
   end
@@ -207,7 +213,7 @@ defmodule Membrane.WebRTC.Server.Peer do
 
   @impl true
   def websocket_info({:DOWN, _ref, :process, room, reason}, %State{room: room} = state) do
-    stop_and_send_error(self(), "Room closed", reason)
+    stop_and_send_error(self(), "Room closed", reason, state)
     {:ok, state}
   end
 
@@ -294,8 +300,13 @@ defmodule Membrane.WebRTC.Server.Peer do
     end
   end
 
-  defp stop_and_send_error(peer, error, details) do
-    message = %Message{event: "error", data: %{description: error, details: details}}
+  defp stop_and_send_error(peer, error, details, state) do
+    message = %Message{
+      event: "error",
+      data: %{description: error, details: details},
+      to: [state.peer_id]
+    }
+
     send_to_client(peer, message)
     stop(peer)
   end
@@ -315,7 +326,12 @@ defmodule Membrane.WebRTC.Server.Peer do
   end
 
   defp handle_message({:ok, _message}, state) do
-    send_to_client(self(), %Message{event: "error", data: %{desciption: "Invalid message"}})
+    send_to_client(self(), %Message{
+      event: "error",
+      data: %{desciption: "Invalid message"},
+      to: [state.peer_id]
+    })
+
     {:ok, state}
   end
 

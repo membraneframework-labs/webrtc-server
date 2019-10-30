@@ -7,9 +7,9 @@ defmodule Membrane.WebRTC.Server.Message do
   `Jason.Encoder`.
     - `:event` - Topic of the message.
     - `:from` - Peer ID of a sender.
-    - `:to` - Peer ID of an adressee. If this field is set to `"all"`, message will be broadcasted:
-    all peers in the room (expect for the peer specified under `from` field) will receive this 
-    message. 
+    - `:to` - Either list of peer IDs of addressees or "all". If this field is set to `"all"`, 
+    the message will be broadcasted: all peers in the room (except for the peer specified
+    under `from` field) will receive this message. 
 
   ## Messages in Server API
   Messages used by `Membrane.WebRTC.Server.Room` and `Membrane.WebRTC.Server.Peer` modules:
@@ -32,7 +32,7 @@ defmodule Membrane.WebRTC.Server.Message do
           data: Jason.Encoder.t() | nil,
           event: String.t(),
           from: Peer.peer_id() | nil,
-          to: String.t() | Peer.peer_id() | nil
+          to: [Peer.peer_id()] | String.t() | nil
         }
 
   @typedoc """
@@ -44,11 +44,11 @@ defmodule Membrane.WebRTC.Server.Message do
           data: d,
           event: String.t(),
           from: Peer.peer_id() | nil,
-          to: String.t() | Peer.peer_id() | nil
+          to: [Peer.peer_id()] | String.t() | nil
         }
 
   @typedoc """
-  Sent after peer successfully initialize and join the room. 
+  Sent to client after peer successfully initialize and join the room. 
 
   `:event` is set to `"authenticated"`.
 
@@ -62,7 +62,7 @@ defmodule Membrane.WebRTC.Server.Message do
             },
             event: String.t(),
             from: nil,
-            to: Peer.peer_id()
+            to: [Peer.peer_id()]
           }
 
   @typedoc """
@@ -82,7 +82,7 @@ defmodule Membrane.WebRTC.Server.Message do
     Sent to client after `c:Membrane.WebRTC.Server.Room.on_join/2` return `{:error, error}`.
 
     - `"Room closed"`
-    Broadcasted to all peers in a room when the room's process is shutting down.
+    Send to client after the room's process shut down.
   """
   @type error_message :: %__MODULE__{
           data: %{
@@ -91,7 +91,7 @@ defmodule Membrane.WebRTC.Server.Message do
           },
           event: String.t(),
           from: nil,
-          to: Peer.peer_id()
+          to: [Peer.peer_id()]
         }
 
   @typedoc """
@@ -107,7 +107,7 @@ defmodule Membrane.WebRTC.Server.Message do
           data: %{peer_id: Peer.peer_id()},
           event: String.t(),
           from: nil,
-          to: Peer.peer_id()
+          to: String.t()
         }
 
   @typedoc """
@@ -122,6 +122,6 @@ defmodule Membrane.WebRTC.Server.Message do
           data: %{peer_id: Peer.peer_id()},
           event: String.t(),
           from: nil,
-          to: Peer.peer_id()
+          to: String.t()
         }
 end

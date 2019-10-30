@@ -1,5 +1,6 @@
 defmodule Membrane.WebRTC.Server.IntegrationTest do
   use ExUnit.Case, async: false
+  require Logger
 
   alias Membrane.WebRTC.Server.{Message, Room}
   alias Membrane.WebRTC.Server.Peer.{AuthData, State}
@@ -58,7 +59,7 @@ defmodule Membrane.WebRTC.Server.IntegrationTest do
       assert [{room_pid, nil}] = Registry.lookup(Membrane.WebRTC.Server.Registry, "room")
       assert is_pid(room_pid)
       assert Process.alive?(room_pid)
-      assert Room.send_message(room_pid, %Message{event: "ping", to: "test_peer"}) == :ok
+      assert Room.send_message(room_pid, %Message{event: "ping", to: ["test_peer"]}) == :ok
     end
 
     test "receive error message and :stop when Room.join fail", ctx do
@@ -73,7 +74,11 @@ defmodule Membrane.WebRTC.Server.IntegrationTest do
       encoded =
         %Message{
           event: "error",
-          data: %{description: "Could not join room", details: "this_is_supposed_to_fail"}
+          data: %{
+            description: "Could not join room",
+            details: "this_is_supposed_to_fail"
+          },
+          to: [ctx.authorised_state.peer_id]
         }
         |> Jason.encode!()
 
@@ -85,14 +90,14 @@ defmodule Membrane.WebRTC.Server.IntegrationTest do
 
   describe "handle frames should" do
     test "not change state if frames are correct messages", ctx do
-      correct_message = Jason.encode!(%Message{to: "peer_1", data: %{}, event: "test"})
+      correct_message = Jason.encode!(%Message{to: ["peer_1"], data: %{}, event: "test"})
 
       assert @module.websocket_handle({:text, correct_message}, ctx.authorised_state) ==
                {:ok, ctx.authorised_state}
     end
 
     test "receive message after sending correct one", ctx do
-      correct_message = Jason.encode!(%{"to" => "peer_1", "data" => %{}, "event" => "event"})
+      correct_message = Jason.encode!(%{"to" => ["peer_1"], "data" => %{}, "event" => "event"})
 
       @module.websocket_handle({:text, correct_message}, ctx.authorised_state)
 
@@ -100,7 +105,7 @@ defmodule Membrane.WebRTC.Server.IntegrationTest do
         data: %{},
         event: "event",
         from: "peer_10",
-        to: "peer_1"
+        to: ["peer_1"]
       }
 
       received = {:message, message |> Jason.encode!()}
@@ -108,7 +113,7 @@ defmodule Membrane.WebRTC.Server.IntegrationTest do
     end
 
     test "receive message modified by callback and not the original one", ctx do
-      message = %{event: "modify", data: "a", to: "peer_1", from: "peer_10"}
+      message = %{event: "modify", data: "a", to: ["peer_1"], from: "peer_10"}
       state = %State{ctx.authorised_state | module: CustomPeer}
       modified = {:message, struct(Message, Map.put(message, :data, "ab")) |> Jason.encode!()}
       assert @module.websocket_handle({:text, Jason.encode!(message)}, state) == {:ok, state}
@@ -125,7 +130,7 @@ defmodule Membrane.WebRTC.Server.IntegrationTest do
     end
 
     test "receive original message if callback return it", ctx do
-      message = %{event: "just send it", data: "a", to: "peer_1", from: "peer_10"}
+      message = %{event: "just send it", data: "a", to: ["peer_1"], from: "peer_10"}
       state = %State{ctx.authorised_state | module: CustomPeer}
       received = {:message, struct(Message, message) |> Jason.encode!()}
       assert @module.websocket_handle({:text, Jason.encode!(message)}, state) == {:ok, state}
@@ -134,7 +139,7 @@ defmodule Membrane.WebRTC.Server.IntegrationTest do
     end
 
     test "change internal state if callback return it", ctx do
-      message = %{event: "change state", data: "brand new state", to: "peer_1", from: "peer_10"}
+      message = %{event: "change state", data: "brand new state", to: ["peer_1"], from: "peer_10"}
       state = %State{ctx.authorised_state | module: CustomPeer}
       received = {:message, struct(Message, message) |> Jason.encode!()}
       new_state = %State{state | internal_state: "brand new state"}
@@ -147,7 +152,13 @@ defmodule Membrane.WebRTC.Server.IntegrationTest do
   describe "handle terminate" do
     test "should return :ok and receive message about leaving room by peer_10", ctx do
       assert @module.terminate(:normal, %{}, ctx.authorised_state) == :ok
-      message = %Message{data: %{peer_id: "peer_10"}, event: "left"}
+
+      message = %Message{
+        data: %{peer_id: "peer_10"},
+        event: "left",
+        to: "all"
+      }
+
       received = {:message, message |> Jason.encode!()}
       assert_receive ^received
     end
@@ -165,7 +176,11 @@ defmodule Membrane.WebRTC.Server.IntegrationTest do
       @module.websocket_info(message, ctx.authorised_state)
 
       encoded =
-        %Message{event: "error", data: %{description: "Room closed", details: :exit_reason}}
+        %Message{
+          event: "error",
+          data: %{description: "Room closed", details: :exit_reason},
+          to: [ctx.authorised_state.peer_id]
+        }
         |> Jason.encode!()
 
       received = {:message, encoded}

@@ -33,7 +33,7 @@ defmodule Example.Peer do
 
   @impl true
   def on_receive(message, context, state) do
-    Logger.info("Sending message to peer #{message.to} from #{context.peer_id}")
+    Logger.info("Sending message to peers #{inspect(message.to)} from #{context.peer_id}")
 
     {:ok, message, state}
   end
