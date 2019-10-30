@@ -7,7 +7,7 @@ defmodule Membrane.WebRTC.Server.Support.RoomHelper do
     do: spawn(fn -> :ok end)
 
   def generate_pid(number, false),
-    do: IEx.Helpers.pid(0, number, 0)
+    do: IEx.Helpers.pid(0, number + 1000, 0)
 
   def create_auth(sufix),
     do: %AuthData{peer_id: "peer_" <> to_string(sufix), credentials: %{}, metadata: nil}

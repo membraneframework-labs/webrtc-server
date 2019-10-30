@@ -46,9 +46,8 @@ defmodule Membrane.WebRTC.Server.Room do
   @doc """
   Callback invoked before forwarding messages either peers.
 
-  This mean this callback will be invoked every time functions `forward_message/2`, `broadcast/3`,
-  `broadcast/4` are called or the room broadcasts messages by itself (e.g. when peer joins
-  the room).
+  This mean this callback will be invoked every time message is forwarded or the room broadcasts 
+  messages by itself (e.g. when peer joins the room).
 
   Room will forward_message message returned by this callback, ergo returning `{:ok, state}`
   will cause ignoring message.
@@ -113,14 +112,7 @@ defmodule Membrane.WebRTC.Server.Room do
   @spec join(room :: pid(), auth_data :: AuthData.t(), peer_pid :: pid()) ::
           :ok | {:error, atom()} | {:error, {atom(), any()}}
   def join(room, auth_data, peer_pid) do
-    with :ok <-
-           GenServer.call(
-             room,
-             {:join, auth_data, peer_pid}
-           ) do
-      broadcast(room, %{peer_id: auth_data.peer_id}, "joined", auth_data.peer_id)
-      :ok
-    end
+    GenServer.call(room, {:join, auth_data, peer_pid})
   end
 
   @doc """
@@ -136,31 +128,10 @@ defmodule Membrane.WebRTC.Server.Room do
   end
 
   @doc """
-  Sends the message created from data and event to every peer in the room except for the sender.
-  """
-  @spec broadcast(
-          room :: pid(),
-          data :: String.t() | map | nil,
-          event :: String.t(),
-          sender :: String.t()
-        ) :: :ok | {:error, any}
-  def broadcast(room, data, event, sender) do
-    message = %Message{data: data, event: event, from: sender, to: "all"}
-    forward_message(room, message)
-  end
-
-  @doc """
-  Sends the message created from data and event to every peer in the room.
-  """
-  @spec broadcast(room :: pid(), data :: String.t() | map | nil, event :: String.t()) ::
-          :ok | {:error, any()}
-  def broadcast(room, data, event) do
-    message = %Message{data: data, event: event, to: "all"}
-    forward_message(room, message)
-  end
-
-  @doc """
   Forwards the message to the addressees given under `message.to` key.
+
+  Messages ment to be broadcasted should have `message.to` set to "all". Broadcasted message will
+  be forwarded to all peers, except for sender (given under `message.from`).
   """
   @spec forward_message(room :: pid(), message :: Message.t()) ::
           :ok | {:error, :no_such_peer} | {:error, :unknown_error}
@@ -214,6 +185,15 @@ defmodule Membrane.WebRTC.Server.Room do
         state = %State{state | peers: peers}
 
         Process.monitor(peer_pid)
+
+        broadcasted_message = %Message{
+          data: %{peer_id: auth_data.peer_id},
+          event: "joined",
+          from: auth_data.peer_id,
+          to: "all"
+        }
+
+        {:ok, state} = try_forward_message(broadcasted_message, state)
         {:reply, :ok, state}
 
       {{:error, error}, state} ->
