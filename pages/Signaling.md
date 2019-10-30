@@ -10,7 +10,7 @@ where it will be forwarded to the addressees. The addressees and sender are spec
 `to` and `from` message fields by peer_ids.
 
 The message can be modified or ignored by both peer and room using 
-`c:Membrane.WebRTC.Server.Peer.on_receive/3` and `c:Membrane.WebRTC.Server.Room.on_send/2` 
+`c:Membrane.WebRTC.Server.Peer.on_receive/3` and `c:Membrane.WebRTC.Server.Room.on_forward/2` 
 callbacks. The addressee peer, after receiving the message will encode it back to JSON 
 and send it to its client.
 

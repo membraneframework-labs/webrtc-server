@@ -59,7 +59,7 @@ defmodule Membrane.WebRTC.Server.IntegrationTest do
       assert [{room_pid, nil}] = Registry.lookup(Membrane.WebRTC.Server.Registry, "room")
       assert is_pid(room_pid)
       assert Process.alive?(room_pid)
-      assert Room.send_message(room_pid, %Message{event: "ping", to: ["test_peer"]}) == :ok
+      assert Room.forward_message(room_pid, %Message{event: "ping", to: ["test_peer"]}) == :ok
     end
 
     test "receive error message and :stop when Room.join fail", ctx do

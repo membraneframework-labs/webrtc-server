@@ -19,13 +19,16 @@ defmodule Membrane.WebRTC.Server.RoomTest do
 
     test "not receive broadcasted message when broadcaster is given" do
       ping_message = %Message{event: "ping", to: "all"}
-      @module.handle_call({:send, ping_message}, nil, state(10, BiMap.new(), true))
+      @module.handle_call({:forward, ping_message}, nil, state(10, BiMap.new(), true))
       refute_received ^ping_message
     end
 
     test "not change state nor send messages when broadcasting to empty room" do
       ping_message = %Message{event: "ping", to: "all"}
-      assert @module.handle_call({:send, ping_message}, nil, state(0)) == {:reply, :ok, state(0)}
+
+      assert @module.handle_call({:forward, ping_message}, nil, state(0)) ==
+               {:reply, :ok, state(0)}
+
       refute_received ^ping_message
     end
   end
@@ -33,7 +36,7 @@ defmodule Membrane.WebRTC.Server.RoomTest do
   describe "handle_call should" do
     test "receive sent ping" do
       ping_message = %Message{event: "ping", to: ["peer_1"]}
-      @module.handle_call({:send, ping_message}, self(), state(5, BiMap.new(), true))
+      @module.handle_call({:forward, ping_message}, self(), state(5, BiMap.new(), true))
       assert_received ping_message
     end
 
@@ -41,7 +44,7 @@ defmodule Membrane.WebRTC.Server.RoomTest do
       new_state = state(5, BiMap.new(), true)
       ping_message = %Message{event: "ping", to: ["peer_-1"]}
 
-      refute @module.handle_call({:send, ping_message}, self(), new_state) ==
+      refute @module.handle_call({:forward, ping_message}, self(), new_state) ==
                {:reply, :ok, new_state}
 
       refute_received ^ping_message

@@ -44,16 +44,16 @@ defmodule Membrane.WebRTC.Server.Room do
               {:ok, internal_state()}
 
   @doc """
-  Callback invoked before sending messages either to one or all peers.
+  Callback invoked before forwarding messages either peers.
 
-  This mean this callback will be invoked every time functions `send_message/2`, `broadcast/3`,
+  This mean this callback will be invoked every time functions `forward_message/2`, `broadcast/3`,
   `broadcast/4` are called or the room broadcasts messages by itself (e.g. when peer joins
   the room).
 
-  Room will send message returned by this callback, ergo returning `{:ok, state}`
+  Room will forward_message message returned by this callback, ergo returning `{:ok, state}`
   will cause ignoring message.
   """
-  @callback on_send(
+  @callback on_forward(
               message :: Message.t(),
               state :: internal_state()
             ) :: {:ok, internal_state()} | {:ok, Message.t(), internal_state()}
@@ -68,7 +68,7 @@ defmodule Membrane.WebRTC.Server.Room do
   @optional_callbacks on_init: 1,
                       on_join: 2,
                       on_leave: 2,
-                      on_send: 2,
+                      on_forward: 2,
                       on_terminate: 1
 
   @doc """
@@ -146,7 +146,7 @@ defmodule Membrane.WebRTC.Server.Room do
         ) :: :ok | {:error, any}
   def broadcast(room, data, event, sender) do
     message = %Message{data: data, event: event, from: sender, to: "all"}
-    send_message(room, message)
+    forward_message(room, message)
   end
 
   @doc """
@@ -156,16 +156,16 @@ defmodule Membrane.WebRTC.Server.Room do
           :ok | {:error, any()}
   def broadcast(room, data, event) do
     message = %Message{data: data, event: event, to: "all"}
-    send_message(room, message)
+    forward_message(room, message)
   end
 
   @doc """
-  Sends the message to the peer given under `message.to` key.
+  Forwards the message to the addressees given under `message.to` key.
   """
-  @spec send_message(room :: pid(), message :: Message.t()) ::
+  @spec forward_message(room :: pid(), message :: Message.t()) ::
           :ok | {:error, :no_such_peer} | {:error, :unknown_error}
-  def send_message(room, %Message{to: peer_id} = message) when peer_id != nil do
-    case GenServer.call(room, {:send, message}) do
+  def forward_message(room, %Message{to: peer_id} = message) when peer_id != nil do
+    case GenServer.call(room, {:forward, message}) do
       :ok ->
         :ok
 
@@ -199,8 +199,8 @@ defmodule Membrane.WebRTC.Server.Room do
   end
 
   @impl true
-  def handle_call({:send, message}, _from, state) do
-    case try_send_message(message, state) do
+  def handle_call({:forward, message}, _from, state) do
+    case try_forward_message(message, state) do
       {:ok, state} -> {:reply, :ok, state}
       {:error, error} -> {:reply, {:error, error}, state}
     end
@@ -233,7 +233,7 @@ defmodule Membrane.WebRTC.Server.Room do
         |> Map.put(:internal_state, internal_state)
 
       message = %Message{event: "left", data: %{peer_id: peer_id}, to: "all"}
-      try_send_message(message, state)
+      try_forward_message(message, state)
       {:noreply, new_state}
     else
       {:noreply, state}
@@ -276,8 +276,8 @@ defmodule Membrane.WebRTC.Server.Room do
   defp callback_exec(:on_leave, args, state),
     do: apply(state.module, :on_leave, args ++ [state.internal_state])
 
-  defp callback_exec(:on_send, args, state) do
-    case apply(state.module, :on_send, args ++ [state.internal_state]) do
+  defp callback_exec(:on_forward, args, state) do
+    case apply(state.module, :on_forward, args ++ [state.internal_state]) do
       {:ok, internal_state} ->
         {:ok, %State{state | internal_state: internal_state}}
 
@@ -289,26 +289,30 @@ defmodule Membrane.WebRTC.Server.Room do
   defp callback_exec(:on_terminate, args, state),
     do: apply(state.module, :on_terminate, args ++ [state.internal_state])
 
-  defp try_send_message(message, state) do
-    case callback_exec(:on_send, [message], state) do
+  defp try_forward_message(message, state) do
+    case callback_exec(:on_forward, [message], state) do
       {:ok, state} ->
         {:ok, state}
 
       {:ok, %Message{to: "all"} = message, state} ->
-        send_to_all(message, state.peers)
+        forward_to_all(message, state.peers)
         {:ok, state}
 
       {:ok, message, state} ->
+        addressees = message.to
+
         with :ok <-
-               Bunch.Enum.try_each(message.to, fn peer ->
-                 send_to_peer(message, peer, state.peers)
-               end) do
+               Bunch.Enum.try_each(addressees, fn peer -> check_peer(peer, state.peers) end) do
+          Enum.each(addressees, fn peer ->
+            BiMap.get(state.peers, peer) |> Peer.send_to_client(message)
+          end)
+
           {:ok, state}
         end
     end
   end
 
-  defp send_to_all(%Message{from: sender} = message, peers) when not is_nil(sender) do
+  defp forward_to_all(%Message{from: sender} = message, peers) when not is_nil(sender) do
     peers
     |> BiMap.delete_key(sender)
     |> Enum.each(fn {_peer_id, pid} ->
@@ -318,7 +322,7 @@ defmodule Membrane.WebRTC.Server.Room do
     :ok
   end
 
-  defp send_to_all(message, peers) do
+  defp forward_to_all(message, peers) do
     Enum.each(peers, fn {_peer_id, pid} ->
       Peer.send_to_client(pid, message)
     end)
@@ -326,13 +330,12 @@ defmodule Membrane.WebRTC.Server.Room do
     :ok
   end
 
-  defp send_to_peer(message, adressee, peers) do
+  defp check_peer(adressee, peers) do
     case BiMap.get(peers, adressee) do
       nil ->
         {:error, :no_such_peer}
 
-      pid ->
-        Peer.send_to_client(pid, message)
+      _pid ->
         :ok
     end
   end
@@ -350,7 +353,7 @@ defmodule Membrane.WebRTC.Server.Room do
       def on_leave(_peer_id, state),
         do: {:ok, state}
 
-      def on_send(message, state) do
+      def on_forward(message, state) do
         {:ok, message, state}
       end
 
@@ -360,7 +363,7 @@ defmodule Membrane.WebRTC.Server.Room do
       defoverridable on_init: 1,
                      on_join: 2,
                      on_leave: 2,
-                     on_send: 2,
+                     on_forward: 2,
                      on_terminate: 1
     end
   end

@@ -266,7 +266,7 @@ defmodule Membrane.WebRTC.Server.Peer do
         {:ok, %State{state | internal_state: internal_state}}
 
       {:ok, %Message{} = message, internal_state} ->
-        Room.send_message(state.room, message)
+        Room.forward_message(state.room, message)
         {:ok, %State{state | internal_state: internal_state}}
     end
   end
