@@ -9,22 +9,17 @@ defmodule Membrane.WebRTC.Server.Room do
   require Logger
   alias Membrane.WebRTC.Server.{Message, Peer, RoomSupervisor}
   alias Membrane.WebRTC.Server.Peer.AuthData
-  alias Membrane.WebRTC.Server.Room.{DefaultRoom, State}
+  alias Membrane.WebRTC.Server.Room.{Options, State}
 
   @typedoc """
   Defines a custom state of the room, passed as argument and returned by callbacks. 
   """
   @type internal_state :: any()
 
-  @typedoc """
-  Defines options that can be passed to `c:start_link/1` and `c:on_init/1` callback.
-  """
-  @type room_options :: %{name: Registry.key(), module: module() | nil}
-
   @doc """
   Callback invoked when a room is created.
   """
-  @callback on_init(args :: room_options) :: {:ok, internal_state()}
+  @callback on_init(options :: Options.custom_options()) :: {:ok, internal_state()}
 
   @doc """
   Callback invoked when a peer is about to join the room.
@@ -71,35 +66,27 @@ defmodule Membrane.WebRTC.Server.Room do
                       on_terminate: 1
 
   @doc """
-  Starts a room based on the given module, registers it in `Membrane.WebRTC.Server.Registry`
-  (under the given name) and links it to the current process.
+  Starts a room based on the `options.module`, registers it in `options.registry`
+  (under the `options.name`) and links it to the current process.
 
-  Args are passed to module's `c:on_init/1` callback.
+  `options.custom_options` are passed to module's `c:on_init/1` callback.
   """
-  @spec start_link(args :: room_options) :: GenServer.on_start()
-  def start_link(%{name: room_name} = args) do
-    name = {:via, Registry, {Membrane.WebRTC.Server.Registry, room_name}}
-    GenServer.start_link(__MODULE__, args, name: name)
+  @spec start_link(options :: Options.t()) :: GenServer.on_start()
+  def start_link(options) do
+    name = {:via, Registry, {options.registry, options.name}}
+    GenServer.start_link(__MODULE__, options, name: name)
   end
 
   @doc """
-  Creates a room with the given name and module under supervision of 
-  `Membrane.WebRTC.Server.RoomSupervisor`. 
+  Creates a room under supervision of `Membrane.WebRTC.Server.RoomSupervisor`.
+
+  Calls `start_link/1` underneath. 
   """
-  @spec start_supervised(room_name :: String.t(), module :: module()) ::
+  @spec start_supervised(options :: Options.t()) ::
           DynamicSupervisor.on_start_child()
-  def start_supervised(room_name, module) do
-    child_spec = {Membrane.WebRTC.Server.Room, %{name: room_name, module: module}}
+  def start_supervised(options) do
+    child_spec = {Membrane.WebRTC.Server.Room, options}
     DynamicSupervisor.start_child(RoomSupervisor, child_spec)
-  end
-
-  @doc """
-  Creates a room with the given name under supervision of `Membrane.WebRTC.Server.RoomSupervisor`. 
-  """
-  @spec start_supervised(room_name :: String.t()) ::
-          DynamicSupervisor.on_start_child()
-  def start_supervised(room_name) do
-    start_supervised(room_name, nil)
   end
 
   @doc """
@@ -159,14 +146,9 @@ defmodule Membrane.WebRTC.Server.Room do
   end
 
   @impl true
-  def init(%{name: name, module: nil}) do
-    init(%{name: name, module: DefaultRoom})
-  end
-
-  @impl true
-  def init(%{module: module} = args) do
-    state = %State{peers: BiMap.new(), module: module}
-    callback_exec(:on_init, [args], state)
+  def init(options) do
+    state = %State{peers: BiMap.new(), module: options.module}
+    callback_exec(:on_init, [options.custom_options], state)
   end
 
   @impl true
@@ -292,10 +274,8 @@ defmodule Membrane.WebRTC.Server.Room do
     end
   end
 
-  defp forward_to_all(%Message{from: sender} = message, peers) when not is_nil(sender) do
-    peers
-    |> BiMap.delete_key(sender)
-    |> Enum.each(fn {_peer_id, pid} ->
+  defp forward_to_all(%Message{from: nil} = message, peers) do
+    Enum.each(peers, fn {_peer_id, pid} ->
       Peer.send_to_client(pid, message)
     end)
 
@@ -303,7 +283,9 @@ defmodule Membrane.WebRTC.Server.Room do
   end
 
   defp forward_to_all(message, peers) do
-    Enum.each(peers, fn {_peer_id, pid} ->
+    peers
+    |> BiMap.delete_key(message.from)
+    |> Enum.each(fn {_peer_id, pid} ->
       Peer.send_to_client(pid, message)
     end)
 
@@ -324,19 +306,24 @@ defmodule Membrane.WebRTC.Server.Room do
     quote location: :keep do
       @behaviour unquote(__MODULE__)
 
+      @impl true
       def on_init(_args),
         do: {:ok, %{}}
 
+      @impl true
       def on_join(_auth_data, state),
         do: {:ok, state}
 
+      @impl true
       def on_leave(_peer_id, state),
         do: {:ok, state}
 
+      @impl true
       def on_forward(message, state) do
         {:ok, message, state}
       end
 
+      @impl true
       def on_terminate(_state),
         do: :ok
 

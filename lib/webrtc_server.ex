@@ -17,11 +17,7 @@ defmodule Membrane.WebRTC.Server do
 
   @impl true
   def start(_type, _args) do
-    children = [
-      Registry.child_spec(keys: :unique, name: Membrane.WebRTC.Server.Registry),
-      Membrane.WebRTC.Server.RoomSupervisor
-    ]
-
+    children = [Membrane.WebRTC.Server.RoomSupervisor]
     options = [strategy: :one_for_one, name: __MODULE__]
     Supervisor.start_link(children, options)
   end

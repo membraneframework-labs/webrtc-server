@@ -6,6 +6,8 @@ defmodule Example.Application do
 
   @impl true
   def start(_type, _args) do
+    Room.start_supervised(%Room.Options{name: "room", module: Example.Room})
+
     children = [
       Plug.Cowboy.child_spec(
         scheme: Application.fetch_env!(:example, :scheme),
@@ -21,8 +23,6 @@ defmodule Example.Application do
         ]
       )
     ]
-
-    Room.start_supervised("room", Example.Room)
 
     opts = [strategy: :one_for_one, name: Example.Application]
     Supervisor.start_link(children, opts)

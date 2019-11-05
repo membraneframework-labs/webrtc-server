@@ -19,8 +19,10 @@ defmodule Membrane.WebRTC.Server.PeerTest do
     Application.start(:logger)
     Logger.configure(level: :error)
 
-    child_options = {Room, %{name: "room", module: MockRoom}}
-    {:ok, pid} = start_supervised(child_options)
+    registry_spec = Registry.child_spec(keys: :unique, name: MockRegistry)
+    start_supervised(registry_spec)
+    room_spec = {Room, %Room.Options{name: "room", module: MockRoom, registry: MockRegistry}}
+    {:ok, pid} = start_supervised(room_spec)
 
     [
       state: %State{
@@ -41,13 +43,19 @@ defmodule Membrane.WebRTC.Server.PeerTest do
   describe "init should" do
     test "return request with 400 status code when callback parse_request return error tuple",
          ctx do
-      assert @module.init(ctx.mock_request, %Options{module: ParseErrorPeer}) ==
+      assert @module.init(ctx.mock_request, %Options{
+               module: ParseErrorPeer,
+               registry: MockRegistry
+             }) ==
                {:ok, :cowboy_req.reply(400, ctx.mock_request), %{}}
     end
 
     test "return request with 401 status code when callback authenticate return {:error, reason}",
          ctx do
-      assert @module.init(ctx.mock_request, %Options{module: InitErrorPeer}) ==
+      assert @module.init(ctx.mock_request, %Options{
+               module: InitErrorPeer,
+               registry: MockRegistry
+             }) ==
                {:ok, :cowboy_req.reply(401, ctx.mock_request), %{}}
     end
 
@@ -55,14 +63,15 @@ defmodule Membrane.WebRTC.Server.PeerTest do
       request = ctx.mock_request
 
       assert {:cowboy_websocket, request, %State{}, _} =
-               @module.init(request, %Options{module: MockPeer})
+               @module.init(request, %Options{module: MockPeer, registry: MockRegistry})
     end
 
     test "return custom WebSocket options and initialize internal state correctly", ctx do
       request = ctx.mock_request
 
       assert {:cowboy_websocket, request, %State{internal_state: :custom_internal_state},
-              %{idle_timeout: 20}} = @module.init(request, %Options{module: CustomPeer})
+              %{idle_timeout: 20}} =
+               @module.init(request, %Options{module: CustomPeer, registry: MockRegistry})
     end
   end
 

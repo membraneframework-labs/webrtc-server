@@ -3,10 +3,17 @@ defmodule Membrane.WebRTC.Server.RoomTest do
 
   alias Membrane.WebRTC.Server
   alias Server.{Message, RoomSupervisor}
-  alias Server.Room.State
+  alias Server.Room.{Options, State}
   alias Server.Support.{MockRoom, MockSupervisor, RoomHelper}
 
   @module Membrane.WebRTC.Server.Room
+
+  setup_all do
+    child_spec = Registry.child_spec(keys: :unique, name: MockRegistry)
+    start_supervised(child_spec)
+
+    :ok
+  end
 
   describe "handle_cast should" do
     test "remove peer" do
@@ -91,7 +98,12 @@ defmodule Membrane.WebRTC.Server.RoomTest do
     test "start room under RoomSupervisor" do
       start_supervised(MockSupervisor)
 
-      assert {:ok, pid} = @module.start_supervised("create_test", MockRoom)
+      assert {:ok, pid} =
+               @module.start_supervised(%Options{
+                 name: "create_test",
+                 module: MockRoom,
+                 registry: MockRegistry
+               })
 
       assert DynamicSupervisor.which_children(RoomSupervisor) == [
                {:undefined, pid, :worker, [Membrane.WebRTC.Server.Room]}
@@ -103,15 +115,19 @@ defmodule Membrane.WebRTC.Server.RoomTest do
 
   describe "init should" do
     test "registry itself" do
-      assert {:ok, pid} = @module.start_link(%{name: "name", module: MockRoom})
-      assert Registry.lookup(Server.Registry, "name") == [{pid, nil}]
+      assert {:ok, pid} =
+               @module.start_link(%Options{name: "name", module: MockRoom, registry: MockRegistry})
+
+      assert Registry.lookup(MockRegistry, "name") == [{pid, nil}]
       @module.stop(pid)
     end
   end
 
   describe "stop should" do
     test "terminate process" do
-      assert {:ok, pid} = @module.start_link(%{name: "name", module: MockRoom})
+      assert {:ok, pid} =
+               @module.start_link(%Options{name: "name", module: MockRoom, registry: MockRegistry})
+
       @module.stop(pid)
       Process.sleep(5)
       refute Process.alive?(pid)
@@ -123,13 +139,17 @@ defmodule Membrane.WebRTC.Server.RoomTest do
       Application.start(:logger)
       auth_data = RoomHelper.create_auth("id")
 
-      assert {:ok, room_pid} = @module.start_link(%{name: "room", module: MockRoom})
-      assert {:ok, mock_pid} = @module.start_link(%{name: "mock", module: MockRoom})
+      assert {:ok, room_pid} =
+               @module.start_link(%Options{name: "room", module: MockRoom, registry: MockRegistry})
+
+      assert {:ok, mock_pid} =
+               @module.start_link(%Options{name: "mock", module: MockRoom, registry: MockRegistry})
+
       @module.join(room_pid, auth_data, RoomHelper.generate_pid(0, false))
       assert :ok == GenServer.stop(room_pid, :normal)
       Process.sleep(20)
-      assert Registry.lookup(Server.Registry, "mock") == [{mock_pid, nil}]
-      assert Registry.lookup(Server.Registry, "room") == []
+      assert Registry.lookup(MockRegistry, "mock") == [{mock_pid, nil}]
+      assert Registry.lookup(MockRegistry, "room") == []
     end
   end
 

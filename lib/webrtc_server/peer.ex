@@ -120,7 +120,7 @@ defmodule Membrane.WebRTC.Server.Peer do
 
     with {:ok, auth_data, room_name} <-
            callback_exec(:parse_request, [request], options, peer_id),
-         {:ok, room} <- get_room_pid(room_name),
+         {:ok, room} <- get_room_pid(room_name, options.registry),
          {:ok, websocket_options, internal_state} <-
            callback_exec(
              :on_init,
@@ -346,8 +346,8 @@ defmodule Membrane.WebRTC.Server.Peer do
     {:ok, state}
   end
 
-  defp get_room_pid(room) do
-    case Registry.lookup(Membrane.WebRTC.Server.Registry, room) do
+  defp get_room_pid(room, registry) do
+    case Registry.lookup(registry, room) do
       [{room_pid, _value}] when is_pid(room_pid) ->
         {:ok, room_pid}
 
@@ -360,13 +360,16 @@ defmodule Membrane.WebRTC.Server.Peer do
     quote location: :keep do
       @behaviour unquote(__MODULE__)
 
+      @impl true
       def on_init(_context, _auth_data, options) do
         {:ok, options}
       end
 
+      @impl true
       def on_receive(message, _context, state),
         do: {:ok, message, state}
 
+      @impl true
       def on_terminate(_context, _state),
         do: :ok
 

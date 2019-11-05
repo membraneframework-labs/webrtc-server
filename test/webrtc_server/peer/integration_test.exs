@@ -17,12 +17,14 @@ defmodule Membrane.WebRTC.Server.IntegrationTest do
 
   setup_all do
     Application.start(:logger)
-    Registry.start_link(keys: :unique, name: Membrane.WebRTC.Server.Registry)
+    registry_spec = Registry.child_spec(keys: :unique, name: MockRegistry)
+    start_supervised(registry_spec)
     Logger.configure(level: :debug)
+    :ok
   end
 
   setup do
-    child_options = {Room, %{name: "room", module: MockRoom}}
+    child_options = {Room, %Room.Options{name: "room", module: MockRoom, registry: MockRegistry}}
     {:ok, pid} = start_supervised(child_options)
     insert_peers(10, pid, true)
 
@@ -56,7 +58,7 @@ defmodule Membrane.WebRTC.Server.IntegrationTest do
 
       assert @module.websocket_init(state) == {:ok, after_init_state}
 
-      assert [{room_pid, nil}] = Registry.lookup(Membrane.WebRTC.Server.Registry, "room")
+      assert [{room_pid, nil}] = Registry.lookup(MockRegistry, "room")
       assert is_pid(room_pid)
       assert Process.alive?(room_pid)
       assert Room.forward_message(room_pid, %Message{event: "ping", to: ["test_peer"]}) == :ok
@@ -64,7 +66,10 @@ defmodule Membrane.WebRTC.Server.IntegrationTest do
 
     test "receive error message and :stop when Room.join fail", ctx do
       stop_supervised(Room)
-      child_options = {Room, %{name: "error_room", module: ErrorRoom}}
+
+      child_options =
+        {Room, %Room.Options{name: "error_room", module: ErrorRoom, registry: MockRegistry}}
+
       {:ok, pid} = start_supervised(child_options)
 
       state = %State{ctx.unauthorised_state | room: pid}
