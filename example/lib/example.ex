@@ -6,9 +6,9 @@ defmodule Example.Application do
 
   @impl true
   def start(_type, _args) do
-    Room.start_supervised(%Room.Options{name: "room", module: Example.Room})
-
     children = [
+      Example.Repo,
+      Registry.child_spec(keys: :unique, name: Example.Registry),
       Plug.Cowboy.child_spec(
         scheme: Application.fetch_env!(:example, :scheme),
         plug: Example.Router,
@@ -24,17 +24,25 @@ defmodule Example.Application do
       )
     ]
 
-    opts = [strategy: :one_for_one, name: Example.Application]
-    Supervisor.start_link(children, opts)
+    options = [strategy: :one_for_one, name: Example.Application]
+    {:ok, pid} = Supervisor.start_link(children, options)
+
+    Room.start_supervised(%Room.Options{
+      name: "room",
+      module: Example.Room,
+      registry: Example.Registry
+    })
+
+    {:ok, pid}
   end
 
   defp dispatch do
-    options = %Options{module: Example.Peer}
+    options = %Options{module: Example.Peer, registry: Example.Registry}
 
     [
       {:_,
        [
-         {"/server/[:room]/[:username]/[:password]/", Membrane.WebRTC.Server.Peer, options},
+         {"/server/", Membrane.WebRTC.Server.Peer, options},
          {:_, Plug.Cowboy.Handler, {Example.Router, []}}
        ]}
     ]

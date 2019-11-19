@@ -1,33 +1,26 @@
 defmodule Example.Peer do
   @moduledoc false
+  @token_cookie "guardian_default_token"
 
   use Membrane.WebRTC.Server.Peer
   require Logger
 
   @impl true
   def parse_request(request) do
-    room = :cowboy_req.binding(:room, request)
+    case :cowboy_req.parse_cookies(request) |> List.keyfind(@token_cookie, 0) do
+      {@token_cookie, token} ->
+        {:ok, %{token: token}, nil, "room"}
 
-    if room == :undefined do
-      {:error, :no_room_bound_in_url}
-    else
-      username = :cowboy_req.binding(:username, request, "")
-      password = :cowboy_req.binding(:password, request, "")
-      credentials = %{username: username, password: password}
-      {:ok, credentials, nil, room}
+      _ ->
+        {:error, :no_token_passed}
     end
   end
 
   @impl true
   def on_init(_context, auth_data, _options) do
-    username = auth_data.credentials.username
-    password = auth_data.credentials.password
-
-    if username != "" and password != "" do
-      state = %{username: username}
-      {:ok, state}
-    else
-      {:error, :empty_credentials}
+    with {:ok, _claims} <-
+           Guardian.decode_and_verify(Example.UserManager.Guardian, auth_data.credentials.token) do
+      {:ok, %{}}
     end
   end
 

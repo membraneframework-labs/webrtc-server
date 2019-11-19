@@ -27,6 +27,10 @@ defmodule Example do
 
   defp deps do
     [
+      {:argon2_elixir, "~> 2.0"},
+      {:guardian, "~> 2.0"},
+      {:ecto_sql, "~> 3.0"},
+      {:postgrex, ">= 0.0.0"},
       {:membrane_webrtc_server, path: "../"},
       {:dialyxir, "~> 0.5", only: [:dev], runtime: false},
       {:credo, "~> 1.1.0", only: [:dev, :test], runtime: false},
