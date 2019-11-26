@@ -1,12 +1,12 @@
-defmodule Example.Router do
+defmodule Example.Auth.Router do
   use Plug.Router
   require EEx
-  alias Example.UserManager
-  alias Example.UserManager.Guardian
+  alias Example.Auth.UserManager
+  alias Example.Auth.UserManager.Guardian
 
   plug(Plug.Static,
     at: "/",
-    from: :example
+    from: :example_auth
   )
 
   plug(:match)

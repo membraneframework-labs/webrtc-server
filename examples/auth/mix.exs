@@ -1,9 +1,9 @@
-defmodule Example do
+defmodule Example.Auth do
   use Mix.Project
 
   def project do
     [
-      app: :example,
+      app: :example_auth,
       version: "0.1.0",
       elixir: "~> 1.9",
       start_permanent: Mix.env() == :prod,
@@ -14,7 +14,7 @@ defmodule Example do
 
   def application do
     [
-      mod: {Example.Application, []},
+      mod: {Example.Auth.Application, []},
       extra_applications: [:membrane_webrtc_server]
     ]
   end
@@ -31,7 +31,7 @@ defmodule Example do
       {:guardian, "~> 2.0"},
       {:ecto_sql, "~> 3.0"},
       {:postgrex, ">= 0.0.0"},
-      {:membrane_webrtc_server, path: "../"},
+      {:membrane_webrtc_server, path: "../.."},
       {:dialyxir, "~> 0.5", only: [:dev], runtime: false},
       {:credo, "~> 1.1.0", only: [:dev, :test], runtime: false},
       {:plug, "~> 1.7"},

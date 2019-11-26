@@ -25,7 +25,7 @@ And finally, create one or more users
 
 ```
 $ iex -S mix
-iex> Example.UserManager.create_user(%{username: "username", password: "password"})
+iex> Example.Auth.UserManager.create_user(%{username: "username", password: "password"})
 ```
 
 If you want to connect to the application outside from your local network, you need to set up 

@@ -1,10 +1,10 @@
-defmodule Example.UserManager do
+defmodule Example.Auth.UserManager do
   @moduledoc false
 
   import Ecto.Query, warn: false
-  alias Example.Repo
+  alias Example.Auth.Repo
 
-  alias Example.UserManager.User
+  alias Example.Auth.UserManager.User
 
   def list_users do
     Repo.all(User)

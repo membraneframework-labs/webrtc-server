@@ -1,4 +1,4 @@
-defmodule Example.UserManager.User do
+defmodule Example.Auth.UserManager.User do
   @moduledoc false
 
   use Ecto.Schema

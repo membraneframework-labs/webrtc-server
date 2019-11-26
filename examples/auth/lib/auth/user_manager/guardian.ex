@@ -1,8 +1,8 @@
-defmodule Example.UserManager.Guardian do
+defmodule Example.Auth.UserManager.Guardian do
   @moduledoc false
 
-  use Guardian, otp_app: :example
-  alias Example.UserManager
+  use Guardian, otp_app: :example_auth
+  alias Example.Auth.UserManager
 
   def subject_for_token(user, _claims) do
     {:ok, to_string(user.id)}

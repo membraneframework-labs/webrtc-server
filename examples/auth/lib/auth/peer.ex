@@ -1,4 +1,4 @@
-defmodule Example.Peer do
+defmodule Example.Auth.Peer do
   @moduledoc false
   @token_cookie "guardian_default_token"
 
@@ -19,7 +19,10 @@ defmodule Example.Peer do
   @impl true
   def on_init(_context, auth_data, _options) do
     with {:ok, _claims} <-
-           Guardian.decode_and_verify(Example.UserManager.Guardian, auth_data.credentials.token) do
+           Guardian.decode_and_verify(
+             Example.Auth.UserManager.Guardian,
+             auth_data.credentials.token
+           ) do
       {:ok, %{}}
     end
   end
