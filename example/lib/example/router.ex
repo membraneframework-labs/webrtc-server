@@ -16,7 +16,7 @@ defmodule Example.Router do
     if Guardian.Plug.authenticated?(conn) do
       videochat(conn)
     else
-      send_file(conn, 200, "priv/static/index.html")
+      send_file(conn, 200, "priv/static/html/login.html")
     end
   end
 

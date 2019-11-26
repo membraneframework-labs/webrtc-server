@@ -27,6 +27,9 @@ And finally, create one or more users
 $ iex -S mix
 iex> Example.UserManager.create_user(%{username: "username", password: "password"})
 ```
+
+If you want to connect to the application outside from your local network, you need to set up 
+TURN and STUN servers. Insert their URLs in `rtcConfig` in `priv/static/js/main.js`.
  
 ### HTTPS
 
@@ -37,7 +40,6 @@ $ openssl req -newkey rsa:2048 -nodes -keyout priv/certs/key.pem -x509 -days 365
 ```
 
 Note that this certificate is not validated and thus may cause warnings in browser.
-
 
 ## Usage
 
