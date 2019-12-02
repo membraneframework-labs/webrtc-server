@@ -6,35 +6,41 @@ defmodule Example.Simple.Peer do
 
   @impl true
   def parse_request(request) do
-    room = :cowboy_req.binding(:room, request)
+    with {:ok, room_name} <- get_room_name(request),
+         {:ok, credentials} <- get_credentials(request) do
+      {:ok, credentials, nil, room_name}
+    end
+  end
 
-    if room == :undefined do
-      {:error, :no_room_bound_in_url}
+  defp get_credentials(request) do
+    case :cowboy_req.parse_cookies(request) |> List.keyfind("credentials", 0) do
+      {"credentials", json} ->
+        Jason.decode(json)
+
+      _ ->
+        {:error, :no_credentials_passed}
+    end
+  end
+
+  defp get_room_name(request) do
+    room_name = :cowboy_req.binding(:room, request)
+
+    if room_name == :undefined do
+      {:error, :no_room_name_bound_in_url}
     else
-      username = :cowboy_req.binding(:username, request, "")
-      password = :cowboy_req.binding(:password, request, "")
-      credentials = %{username: username, password: password}
-      {:ok, credentials, nil, room}
+      {:ok, room_name}
     end
   end
 
   @impl true
   def on_init(_context, auth_data, _options) do
-    username = auth_data.credentials.username
-    password = auth_data.credentials.password
+    username = Map.get(auth_data.credentials, "username")
+    password = Map.get(auth_data.credentials, "password")
 
-    if username != "" and password != "" do
-      state = %{username: username}
-      {:ok, state}
+    if username == "USERNAME" and password == "PASSWORD" do
+      {:ok, %{}}
     else
-      {:error, :empty_credentials}
+      {:error, :wrong_credentials}
     end
-  end
-
-  @impl true
-  def on_receive(message, context, state) do
-    Logger.info("Sending message to peer #{message.to} from #{context.peer_id}")
-
-    {:ok, message, state}
   end
 end

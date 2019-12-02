@@ -1,4 +1,5 @@
-const webSocketUrl = "wss://" + window.location.host + "/server/";
+const room = document.location.href.split("/").slice(-1)[0]
+const webSocketUrl = "wss://" + window.location.host + "/server/" + room;
 var webSocket;
 var localStream;
 var rtcConnections = {};
@@ -6,6 +7,11 @@ const offerOptions = {
     offerToReceiveAudio: 1,
     offerToReceiveVideo: 1
 };
+
+const credentials = {
+    username: "USERNAME",
+    password: "PASSWORD"
+}
 
 const rtcConfig = {
     // iceServers: [
@@ -41,27 +47,13 @@ function setupVideo(id, stream) {
 } 
 
 function openConnection() {
+    document.cookie = "credentials=" + JSON.stringify(credentials)
     socket = new WebSocket(webSocketUrl);
-    socket.onopen = socketOpen;
     socket.onmessage = socketMessage;
-    socket.onclose = socketClose;
-}
-
-function socketOpen(event) {
-    console.log("Starting WebSocket connection.");
-}
-
-function socketClose(event) {
-   console.log("Closing WebSocket connection.");
 }
 
 function onAnswer(data, from) {
-    console.log("Got answer from " + from);
     rtcConnections[from].setRemoteDescription(data);
-}
-
-function onAuthenticated(data, from) {
-    console.log("Authenticated.");
 }
 
 function onError(data, from) {
@@ -70,7 +62,6 @@ function onError(data, from) {
 
 function onJoined(data, from) {
     let peer_id = data.peer_id;
-    console.log(peer_id + " joined.");
     startRTCConnection(peer_id);
     rtcConnections[peer_id].createOffer(
         getHandleDescription(peer_id, "offer"),
@@ -80,7 +71,6 @@ function onJoined(data, from) {
 }
 
 function onCandidateMessage(data, from) {
-    console.log("Got candidate from " + from, data);
     try {
         var candidate = new RTCIceCandidate(data);
         rtcConnections[from].addIceCandidate(candidate);
@@ -90,14 +80,12 @@ function onCandidateMessage(data, from) {
 }
 
 function onLeft(data, from) {
-    console.log(data.peer_id + " left.");
     delete rtcConnections[data.peer_id];
     var videoElement = document.getElementById(data.peer_id);
     videoElement.parentNode.removeChild(videoElement);
 }
 
 function onOffer(data, from) {
-    console.log("Got offer from " + from, data);
     startRTCConnection(from);
     let connection = rtcConnections[from];
     connection.setRemoteDescription(data) 
@@ -109,7 +97,7 @@ function onOffer(data, from) {
 
 const messageEventListeners = {
     answer: onAnswer,
-    authenticated: onAuthenticated,
+    authenticated: (data, from) => {console.log("Authenticated")},
     candidate: onCandidateMessage,
     error: onError,
     joined: onJoined,
@@ -146,7 +134,7 @@ function getOnIceCandidate(peer_id) {
 function getHandleDescription(peer_id, event) {
     return function(description) {
         rtcConnections[peer_id].setLocalDescription(description);
-        message = {to: [peer_id], event: event, data: description}
-        socket.send(JSON.stringify(message))
+        message = {to: [peer_id], event: event, data: description};
+        socket.send(JSON.stringify(message));
     }
 }

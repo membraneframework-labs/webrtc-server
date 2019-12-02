@@ -1,40 +1,60 @@
 defmodule Example.Simple.Application do
   @moduledoc false
   use Application
-  alias Membrane.WebRTC.Server.Peer.Options
+  alias Membrane.WebRTC.Server.Peer
   alias Membrane.WebRTC.Server.Room
 
   @impl true
   def start(_type, _args) do
     children = [
+      Registry.child_spec(keys: :unique, name: Example.Simple.Registry),
       Plug.Cowboy.child_spec(
-        scheme: Application.fetch_env!(:example, :scheme),
+        scheme: :https,
         plug: Example.Simple.Router,
         options: [
           dispatch: dispatch(),
-          port: Application.fetch_env!(:example, :port),
-          ip: Application.fetch_env!(:example, :ip),
-          password: Application.fetch_env!(:example, :password),
-          otp_app: Application.fetch_env!(:example, :otp_app),
-          keyfile: Application.fetch_env!(:example, :keyfile),
-          certfile: Application.fetch_env!(:example, :certfile)
+          port: 8443,
+          ip: {0, 0, 0, 0},
+          password: "PASSWORD",
+          otp_app: :example_simple,
+          # Attach your SSL certificate and key files here
+          keyfile: "priv/certs/key.pem",
+          certfile: "priv/certs/certificate.pem"
         ]
+      ),
+      Supervisor.child_spec(
+        {Room,
+         %Room.Options{
+           name: "room",
+           module: Example.Simple.Room,
+           registry: Example.Simple.Registry,
+           custom_options: %{max_peers: 2}
+         }},
+        id: :room
+      ),
+      Supervisor.child_spec(
+        {Room,
+         %Room.Options{
+           name: "other",
+           module: Example.Simple.Room,
+           registry: Example.Simple.Registry,
+           custom_options: %{max_peers: 2}
+         }},
+        id: :other_room
       )
     ]
-
-    Room.start_supervised("room", Example.Simple.Room)
 
     opts = [strategy: :one_for_one, name: Example.Simple.Application]
     Supervisor.start_link(children, opts)
   end
 
   defp dispatch do
-    options = %Options{module: Example.Simple.Peer}
+    options = %Peer.Options{module: Example.Simple.Peer, registry: Example.Simple.Registry}
 
     [
       {:_,
        [
-         {"/server/[:room]/[:username]/[:password]/", Membrane.WebRTC.Server.Peer, options},
+         {"/server/[:room]/", Membrane.WebRTC.Server.Peer, options},
          {:_, Plug.Cowboy.Handler, {Example.Simple.Router, []}}
        ]}
     ]

@@ -1,17 +1,16 @@
 defmodule Example.Simple.Router do
   use Plug.Router
-  require EEx
 
   plug(Plug.Static,
     at: "/",
-    from: :example
+    from: :example_simple
   )
 
   plug(:match)
   plug(:dispatch)
 
-  get "/" do
-    send_file(conn, 200, "priv/static/index.html")
+  get "/:room" do
+    send_file(conn, 200, "priv/static/html/index.html")
   end
 
   match _ do

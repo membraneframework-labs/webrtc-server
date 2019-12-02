@@ -1,9 +1,9 @@
-defmodule Example do
+defmodule Example.Simple do
   use Mix.Project
 
   def project do
     [
-      app: :example,
+      app: :example_simple,
       version: "0.1.0",
       elixir: "~> 1.9",
       start_permanent: Mix.env() == :prod,
@@ -14,8 +14,8 @@ defmodule Example do
 
   def application do
     [
-      mod: {Example.Application, []},
-      extra_applications: [:membrane_webrtc_server]
+      mod: {Example.Simple.Application, []},
+      extra_applications: []
     ]
   end
 
@@ -27,9 +27,10 @@ defmodule Example do
 
   defp deps do
     [
-      {:membrane_webrtc_server, path: "../"},
-      {:dialyxir, "~> 0.5", only: [:dev], runtime: false},
       {:credo, "~> 1.1.0", only: [:dev, :test], runtime: false},
+      {:dialyxir, "~> 0.5", only: [:dev], runtime: false},
+      {:jason, "~> 1.1"},
+      {:membrane_webrtc_server, path: "../.."},
       {:plug, "~> 1.7"},
       {:plug_cowboy, "~> 2.0"}
     ]
