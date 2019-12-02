@@ -37,8 +37,7 @@ defmodule Membrane.WebRTC.Server.MixProject do
       main: "readme",
       extras: [
         "README.md",
-        "pages/Initialization.md",
-        "pages/Signaling.md"
+        "pages/Guide.md"
       ],
       nest_modules_by_prefix: [
         Membrane.WebRTC.Server
