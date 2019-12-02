@@ -17,17 +17,6 @@ defmodule Example.Auth.Peer do
   end
 
   @impl true
-  def on_init(_context, auth_data, _options) do
-    with {:ok, _claims} <-
-           Guardian.decode_and_verify(
-             Example.Auth.UserManager.Guardian,
-             auth_data.credentials.token
-           ) do
-      {:ok, %{}}
-    end
-  end
-
-  @impl true
   def on_receive(message, context, state) do
     Logger.info("Sending message to peers #{inspect(message.to)} from #{context.peer_id}")
 
