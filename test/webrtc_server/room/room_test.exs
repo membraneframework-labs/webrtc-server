@@ -16,14 +16,6 @@ defmodule Membrane.WebRTC.Server.RoomTest do
   end
 
   describe "handle_cast should" do
-    test "remove peer" do
-      assert @module.handle_cast({:leave, "peer_2"}, state(2)) == {:noreply, state(1)}
-    end
-
-    test "remove no peer" do
-      assert @module.handle_cast({:leave, "peer_3"}, state(2)) == {:noreply, state(2)}
-    end
-
     test "not receive broadcasted message when broadcaster is given" do
       ping_message = %Message{event: "ping", to: "all"}
       @module.handle_call({:forward, ping_message}, nil, state(10, BiMap.new(), true))
@@ -145,7 +137,7 @@ defmodule Membrane.WebRTC.Server.RoomTest do
       assert {:ok, mock_pid} =
                @module.start_link(%Options{name: "mock", module: MockRoom, registry: MockRegistry})
 
-      @module.join(room_pid, auth_data, RoomHelper.generate_pid(0, false))
+      RoomHelper.join(room_pid, auth_data, RoomHelper.generate_pid(0, false))
       assert :ok == GenServer.stop(room_pid, :normal)
       Process.sleep(20)
       assert Registry.lookup(MockRegistry, "mock") == [{mock_pid, nil}]

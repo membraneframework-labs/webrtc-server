@@ -11,4 +11,7 @@ defmodule Membrane.WebRTC.Server.Support.RoomHelper do
 
   def create_auth(sufix),
     do: %AuthData{peer_id: "peer_" <> to_string(sufix), credentials: %{}, metadata: nil}
+
+  def join(room_pid, auth_data, peer_pid),
+    do: GenServer.call(room_pid, {:join, auth_data, peer_pid})
 end

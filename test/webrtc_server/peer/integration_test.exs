@@ -197,17 +197,19 @@ defmodule Membrane.WebRTC.Server.IntegrationTest do
 
   def insert_peers(1, room, _real) do
     auth_data = %AuthData{peer_id: "peer_1", credentials: %{}}
-    Room.join(room, auth_data, self())
+    RoomHelper.join(room, auth_data, self())
   end
 
   def insert_peers(n, room, real) when n > 1 do
-    Room.join(room, %AuthData{peer_id: "peer_1", credentials: %{}}, self())
+    auth_data = %AuthData{peer_id: "peer_1", credentials: %{}}
+    pid = self()
+    RoomHelper.join(room, auth_data, pid)
 
     2..n
     |> Enum.map(fn num ->
       with auth_data <- %AuthData{peer_id: "peer_" <> to_string(num), credentials: %{}},
            pid <- RoomHelper.generate_pid(num, real) do
-        Room.join(room, auth_data, pid)
+        RoomHelper.join(room, auth_data, pid)
       end
     end)
   end
