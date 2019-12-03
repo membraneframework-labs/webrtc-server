@@ -290,7 +290,7 @@ defmodule Membrane.WebRTC.Server.Peer do
   end
 
   defp join_room(state) do
-    case Room.join(state.room, state.auth_data, self()) do
+    case GenServer.call(state.room, {:join, state.auth_data, self()}) do
       :ok ->
         Process.monitor(state.room)
         :ok

@@ -9,7 +9,7 @@ defmodule Example.Auth.Room do
              Example.Auth.UserManager.Guardian,
              auth_data.credentials.token
            ) do
-      {:ok, %{}}
+      {:ok, state}
     end
   end
 end

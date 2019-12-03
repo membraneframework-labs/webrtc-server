@@ -90,31 +90,6 @@ defmodule Membrane.WebRTC.Server.Room do
   end
 
   @doc """
-  Adds the peer to the room. 
-
-  `t:Membrane.WebRTC.Server.Message.joined_message/0` 
-  is broadcasted to other peers after peer successfully joins the room. See
-  [Initialization](initialization.html) for more info.
-  """
-  @spec join(room :: pid(), auth_data :: AuthData.t(), peer_pid :: pid()) ::
-          :ok | {:error, atom()} | {:error, {atom(), any()}}
-  def join(room, auth_data, peer_pid) do
-    GenServer.call(room, {:join, auth_data, peer_pid})
-  end
-
-  @doc """
-  Removes the peer from the room. 
-
-  Broadcast `t:Membrane.WebRTC.Server.Message.left_message/0` to other peers if 
-  given peer was in the room. 
-  """
-  @spec leave(room :: pid(), peer_id :: Peer.peer_id()) :: :ok
-  def leave(room, peer_id) do
-    GenServer.cast(room, {:leave, peer_id})
-    :ok
-  end
-
-  @doc """
   Forwards the message to the addressees given under `message.to` key.
 
   Messages ment to be broadcasted should have `message.to` set to "all". Broadcasted message will
@@ -184,7 +159,21 @@ defmodule Membrane.WebRTC.Server.Room do
   end
 
   @impl true
-  def handle_cast({:leave, peer_id}, state) do
+  def handle_cast(:stop, state),
+    do: {:stop, :normal, state}
+
+  @impl true
+  def handle_info({:DOWN, _reference, :process, pid, _reason}, state) do
+    peer_id = BiMap.get_key(state.peers, pid)
+    {:noreply, leave(peer_id, state)}
+  end
+
+  @impl true
+  def terminate(_reason, state) do
+    callback_exec(:on_terminate, [], state)
+  end
+
+  defp leave(peer_id, state) do
     if BiMap.has_key?(state.peers, peer_id) do
       {:ok, internal_state} = callback_exec(:on_leave, [peer_id], state)
       peers = BiMap.delete_key(state.peers, peer_id)
@@ -196,26 +185,10 @@ defmodule Membrane.WebRTC.Server.Room do
 
       message = %Message{event: "left", data: %{peer_id: peer_id}, to: "all"}
       try_forward_message(message, state)
-      {:noreply, new_state}
+      new_state
     else
-      {:noreply, state}
+      state
     end
-  end
-
-  @impl true
-  def handle_cast(:stop, state),
-    do: {:stop, :normal, state}
-
-  @impl true
-  def handle_info({:DOWN, _reference, :process, pid, _reason}, state) do
-    peer_id = BiMap.get_key(state.peers, pid)
-    leave(self(), peer_id)
-    {:noreply, state}
-  end
-
-  @impl true
-  def terminate(_reason, state) do
-    callback_exec(:on_terminate, [], state)
   end
 
   defp callback_exec(:on_init, args, state) do
