@@ -41,6 +41,31 @@ $ openssl req -newkey rsa:2048 -nodes -keyout priv/certs/key.pem -x509 -days 365
 
 Note that this certificate is not validated and thus may cause warnings in browser.
 
+To trust self-signed certificate follow instructions below:
+
+### Debian
+
+```
+$ apt install ca-certificates
+$ cp priv/certs/certificate.pem /usr/local/share/ca-certificates/
+$ update-ca-certificates
+```
+
+### Arch
+
+```
+$ trust anchor --store priv/certs/certificate.pem
+```
+
+### MacOS
+
+```
+$ security import priv/certs/certificate.pem -k ~/Library/Keychains/login.keychain-db
+```
+
+Then, find your certificate in Keychains, open it, expand the Trust section and change
+the SSL setting to "Always Trust".
+
 ## Usage
 
 Run application with

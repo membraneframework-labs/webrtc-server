@@ -13,6 +13,31 @@ $ openssl req -newkey rsa:2048 -nodes -keyout priv/certs/key.pem -x509 -days 365
 Note that this certificate is not validated and thus may cause warnings in browser. Custom ip,
 port or other Plug options can be set up in `config/config.exs`. 
 
+To trust self-signed certificate follow instructions below:
+
+### Debian
+
+```
+$ apt install ca-certificates
+$ cp priv/certs/certificate.pem /usr/local/share/ca-certificates/
+$ update-ca-certificates
+```
+
+### Arch
+
+```
+$ trust anchor --store priv/certs/certificate.pem
+```
+
+### MacOS
+
+```
+$ security import priv/certs/certificate.pem -k ~/Library/Keychains/login.keychain-db
+```
+
+Then, find your certificate in Keychains, open it, expand the Trust section and change
+the SSL setting to "Always Trust".
+
 ## Usage
 
 Run application with
@@ -22,9 +47,8 @@ $ mix start
 ```
 
 You can join videochat in: 
-`https://YOUR-IP-ADDRESS:PORT/?room=room&username=USERNAME&password=PASSWORD`, for example 
-[here](https://localhost:8443/?room=room&username=JohnSmith&password=1234). You should see video 
-stream from your and every other peer cameras.
+`https://YOUR-IP-ADDRESS:PORT/NAME-OF-ROOM`, for example [here](https://localhost:8443/room). You should see 
+video stream from your and every other peer cameras.
 
 ## Copyright and License
 
