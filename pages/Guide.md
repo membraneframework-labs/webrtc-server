@@ -299,7 +299,7 @@ care of every other request.
 
 ```elixir
 defp dispatch do
-  peer_options = %Peer.Options{module: Server.Peer, registry: Server.Registry}
+  peer_options = %Peer.Options{module: Server.Peer}
   
   [
     {:_,
@@ -311,8 +311,7 @@ defp dispatch do
 end
 ```
 
-As you can see, we also scecify options for starting peer process. Peer uses `Server.Registry`
-which we'll start in a moment. 
+As you can see, we also specify options for starting peer process.
 
 We have to implement a `start` function, in which we will start other processes.
 
@@ -328,13 +327,10 @@ def start(_type, _args) do
 end
 ```
 
-Inside the `children` list, we will specify three workers: `Server.Registry`, `Plug.Cowboy` and
-`Server.Room`. Please note that room must be started after the registry (because room uses it to 
-registry itself). 
+Inside the `children` list, we will specify two workers: `Plug.Cowboy` and `Server.Room`. 
 
 ```elixir
 children = [
-  Registry.child_spec(keys: :unique, name: Example.Simple.Registry),
   Plug.Cowboy.child_spec(
     scheme: Application.fetch_env!(:server, :scheme),
     plug: Example.Simple.Router,
@@ -353,7 +349,6 @@ children = [
      %Room.Options{
        name: "room",
        module: Server.Room,
-       registry: Server.Registry,
        custom_options: %{max_peers: 2}
      }},
     id: :room
@@ -374,7 +369,6 @@ Supervisor.child_spec(
    %Room.Options{
      name: "other",
      module: Server.Room,
-     registry: Server.Registry,
      custom_options: %{max_peers: 4}
    }},
   id: :other_room

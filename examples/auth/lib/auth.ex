@@ -8,7 +8,6 @@ defmodule Example.Auth.Application do
   def start(_type, _args) do
     children = [
       Example.Auth.Repo,
-      Registry.child_spec(keys: :unique, name: Example.Auth.Registry),
       Plug.Cowboy.child_spec(
         scheme: Application.fetch_env!(:example_auth, :scheme),
         plug: Example.Auth.Router,
@@ -24,8 +23,7 @@ defmodule Example.Auth.Application do
       ),
       Room.child_spec(%Room.Options{
         name: "room",
-        module: Example.Auth.Room,
-        registry: Example.Auth.Registry
+        module: Example.Auth.Room
       })
     ]
 
@@ -34,7 +32,7 @@ defmodule Example.Auth.Application do
   end
 
   defp dispatch do
-    options = %Options{module: Example.Auth.Peer, registry: Example.Auth.Registry}
+    options = %Options{module: Example.Auth.Peer}
 
     [
       {:_,

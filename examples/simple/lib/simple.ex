@@ -7,7 +7,6 @@ defmodule Example.Simple.Application do
   @impl true
   def start(_type, _args) do
     children = [
-      Registry.child_spec(keys: :unique, name: Example.Simple.Registry),
       Plug.Cowboy.child_spec(
         scheme: :https,
         plug: Example.Simple.Router,
@@ -27,7 +26,6 @@ defmodule Example.Simple.Application do
          %Room.Options{
            name: "room",
            module: Example.Simple.Room,
-           registry: Example.Simple.Registry,
            custom_options: %{max_peers: 2}
          }},
         id: :room
@@ -37,7 +35,6 @@ defmodule Example.Simple.Application do
          %Room.Options{
            name: "other",
            module: Example.Simple.Room,
-           registry: Example.Simple.Registry,
            custom_options: %{max_peers: 2}
          }},
         id: :other_room
@@ -49,7 +46,7 @@ defmodule Example.Simple.Application do
   end
 
   defp dispatch do
-    options = %Peer.Options{module: Example.Simple.Peer, registry: Example.Simple.Registry}
+    options = %Peer.Options{module: Example.Simple.Peer}
 
     [
       {:_,

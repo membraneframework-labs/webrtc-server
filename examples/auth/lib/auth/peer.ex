@@ -15,11 +15,4 @@ defmodule Example.Auth.Peer do
         {:error, :no_token_passed}
     end
   end
-
-  @impl true
-  def on_receive(message, context, state) do
-    Logger.info("Sending message to peers #{inspect(message.to)} from #{context.peer_id}")
-
-    {:ok, message, state}
-  end
 end

@@ -7,11 +7,16 @@ defmodule Membrane.WebRTC.Server.Room.Options do
     - `custom_options` - Options passed to `c:Membrane.WebRTC.Server.Room.on_init/1` callback.
     - `name` - Name under which room will be registered.
     - `module` - Custom module implementing `Membrane.WebRTC.Server.Room` behaviour. 
-    - `registry` - Registry in which room will be registered.
+    - `registry` - Registry in which room will be registered. `Membrane.WebRTC.Server.Registry`
+    by default.
   """
 
   @enforce_keys [:name]
-  defstruct [:custom_options, :registry, module: Membrane.WebRTC.Server.Room.DefaultRoom] ++
+  defstruct [
+              :custom_options,
+              registry: Membrane.WebRTC.Server.Registry,
+              module: Membrane.WebRTC.Server.Room.DefaultRoom
+            ] ++
               @enforce_keys
 
   @type custom_options :: any()

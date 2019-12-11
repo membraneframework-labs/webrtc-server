@@ -6,10 +6,12 @@ defmodule Membrane.WebRTC.Server.Peer.Options do
   ## Fields
     - `:module` - Custom module implementing `Membrane.WebRTC.Server.Peer` callbacks.
     - `:custom_options` - Options passed to `c:Membrane.WebRTC.Server.Peer.on_init/3` callback.
-    - `:registry` - Registry in which Peer will lookup room.
+    - `:registry` - Registry in which Peer will lookup room. `Membrane.WebRTC.Server.Registry`
+    by default.
+
   """
   @enforce_keys [:module]
-  defstruct [:custom_options, :registry] ++ @enforce_keys
+  defstruct [:custom_options, registry: Membrane.WebRTC.Server.Registry] ++ @enforce_keys
 
   @type t :: %__MODULE__{
           module: module(),
