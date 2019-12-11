@@ -54,7 +54,7 @@ defmodule Example.Simple.Application do
     [
       {:_,
        [
-         {"/server/[:room]/", Membrane.WebRTC.Server.Peer, options},
+         {"/webrtc/[:room]/", Membrane.WebRTC.Server.Peer, options},
          {:_, Plug.Cowboy.Handler, {Example.Simple.Router, []}}
        ]}
     ]

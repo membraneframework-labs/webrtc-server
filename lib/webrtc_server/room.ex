@@ -184,7 +184,7 @@ defmodule Membrane.WebRTC.Server.Room do
         |> Map.put(:internal_state, internal_state)
 
       message = %Message{event: "left", data: %{peer_id: peer_id}, to: "all"}
-      try_forward_message(message, state)
+      try_forward_message(message, new_state)
       new_state
     else
       state

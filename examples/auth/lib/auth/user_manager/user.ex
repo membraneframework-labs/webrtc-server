@@ -3,7 +3,6 @@ defmodule Example.Auth.UserManager.User do
 
   use Ecto.Schema
   import Ecto.Changeset
-  alias Argon2
   @derive {Jason.Encoder, only: [:password, :username]}
 
   schema "users" do

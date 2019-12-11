@@ -39,7 +39,7 @@ defmodule Example.Auth.Application do
     [
       {:_,
        [
-         {"/server/", Membrane.WebRTC.Server.Peer, options},
+         {"/webrtc/", Membrane.WebRTC.Server.Peer, options},
          {:_, Plug.Cowboy.Handler, {Example.Auth.Router, []}}
        ]}
     ]

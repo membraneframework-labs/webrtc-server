@@ -2,7 +2,18 @@
 
 An example of signaling server based on `Membrane.WebRTC.Server`.
 
+
 ## Configuration
+
+Custom ip, port or other Plug options can be set up in `config/config.exs`. 
+
+Download dependencies with
+
+```
+$ mix deps.get
+```
+
+### HTTPS
 
 Since application uses HTTPS, certificate and key are needed to run it. You generate them with
 
@@ -10,8 +21,7 @@ Since application uses HTTPS, certificate and key are needed to run it. You gene
 $ openssl req -newkey rsa:2048 -nodes -keyout priv/certs/key.pem -x509 -days 365 -out priv/certs/certificate.pem
 ```
 
-Note that this certificate is not validated and thus may cause warnings in browser. Custom ip,
-port or other Plug options can be set up in `config/config.exs`. 
+Note that this certificate is not validated and thus may cause warnings in browser.
 
 To trust self-signed certificate follow instructions below:
 

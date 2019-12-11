@@ -6,6 +6,12 @@ An example of signaling server based on `Membrane.WebRTC.Server`.
 
 Custom ip, port or other Plug options can be set up in `config/config.exs`. 
 
+Download dependencies with
+
+```
+$ mix deps.get
+```
+
 ### Guardian
 
 This application uses [Guardian](https://github.com/ueberauth/guardian) to authenticate 
@@ -28,7 +34,7 @@ $ iex -S mix
 iex> Example.Auth.UserManager.create_user(%{username: "username", password: "password"})
 ```
 
-If you want to connect to the application outside from your local network, you need to set up 
+If you want to connect to the application outside of your local network, you need to set up 
 TURN and STUN servers. Insert their URLs in `rtcConfig` in `priv/static/js/main.js`.
  
 ### HTTPS
@@ -74,8 +80,9 @@ Run application with
 $ mix start
 ```
 
-You can join videochat in: `https://YOUR-IP-ADDRESS:PORT/`. After logging in, you should see video 
-stream from your and every other peer cameras.
+You can join videochat in: `https://YOUR-IP-ADDRESS:PORT/` (by default, it will be 
+https://0.0.0.0:8443/). After logging in, you should see video stream from your and every other
+peer cameras.
 
 ## Copyright and License
 

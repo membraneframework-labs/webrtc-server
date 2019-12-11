@@ -28,12 +28,7 @@ defmodule Membrane.WebRTC.Server.Message do
   @enforce_keys [:event]
   defstruct @enforce_keys ++ [:data, :from, :to]
 
-  @type t :: %__MODULE__{
-          data: Jason.Encoder.t() | nil,
-          event: String.t(),
-          from: Peer.peer_id() | nil,
-          to: [Peer.peer_id()] | String.t() | nil
-        }
+  @type t :: t(Jason.Encoder.t() | nil)
 
   @typedoc """
   Type prepared for defining custom `Membrane.WebRTC.Server.Message`.
