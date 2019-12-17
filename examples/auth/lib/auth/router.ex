@@ -13,14 +13,14 @@ defmodule Example.Auth.Router do
   plug(:dispatch)
 
   get "/" do
-    if Guardian.Plug.authenticated?(conn) do
-      videochat(conn)
-    else
-      send_file(conn, 200, "priv/static/html/login.html")
-    end
+    send_file(conn, 200, "priv/static/html/login.html")
   end
 
-  post "/" do
+  get "/videochat" do
+    send_file(conn, 200, "priv/static/html/videochat.html")
+  end
+
+  post "/login" do
     {:ok, body, conn} = read_body(conn)
 
     case URI.decode_query(body) do
@@ -29,7 +29,7 @@ defmodule Example.Auth.Router do
         |> login_result(conn)
 
       _ ->
-        :not_ok
+        send_resp(conn, 500, "Could not decode login query")
     end
   end
 
@@ -52,11 +52,7 @@ defmodule Example.Auth.Router do
     conn
     |> Guardian.Plug.sign_in(user)
     |> Guardian.Plug.remember_me(user)
-    |> videochat()
-  end
-
-  defp videochat(conn) do
-    send_file(conn, 200, "priv/static/html/video_chat.html")
+    |> redirect("/videochat")
   end
 
   defp redirect(conn, to) do
