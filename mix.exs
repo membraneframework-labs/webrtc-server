@@ -9,12 +9,14 @@ defmodule Membrane.WebRTC.Server.MixProject do
       app: :membrane_webrtc_server,
       aliases: [docs: ["docs", &copy_images/1]],
       name: "WebRTC Server",
+      description: "Membrane Multimedia Framework (WebRTC signaling server)",
       version: @version,
       elixir: "~> 1.9",
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
       deps: deps(),
       source_url: @github_url,
+      package: package(),
       docs: docs()
     ]
   end
@@ -47,6 +49,17 @@ defmodule Membrane.WebRTC.Server.MixProject do
         Room: [~r/^Membrane.WebRTC.Server.Room.*/],
         Message: [~r/^Membrane.WebRTC.Server.Message.*/]
       ]
+    ]
+  end
+
+  defp package do
+    [
+      maintainers: ["Membrane Team"],
+      licenses: ["Apache 2.0"],
+      links: %{
+        "GitHub" => @github_url,
+        "Membrane Framework Homepage" => "https://membraneframework.org"
+      }
     ]
   end
 
