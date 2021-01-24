@@ -328,7 +328,7 @@ defmodule Membrane.WebRTC.Server.Peer do
   defp handle_message({:ok, _message}, state) do
     send_to_client(self(), %Message{
       event: "error",
-      data: %{desciption: "Invalid message"},
+      data: %{description: "Invalid message"},
       to: [state.peer_id]
     })
 
