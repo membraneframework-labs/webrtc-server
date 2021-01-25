@@ -23,14 +23,14 @@ defmodule Membrane.WebRTC.Server.MixProject do
 
   defp deps do
     [
-      {:uuid, "~> 1.1"},
-      {:cowboy, "~> 2.6"},
-      {:jason, "~> 1.1"},
-      {:dialyxir, "~> 1.0.0-rc.7", only: [:dev], runtime: false},
-      {:credo, "~> 1.1.0", only: [:dev, :test], runtime: false},
-      {:bimap, "~> 1.0"},
-      {:ex_doc, "~> 0.21", only: :dev, runtime: false},
-      {:bunch, "~> 1.2"}
+      {:uuid, "1.1.8"},
+      {:cowboy, "2.8.0"},
+      {:jason, "1.2.2"},
+      {:dialyxir, "1.0.0", only: [:dev], runtime: false},
+      {:credo, "1.5.4", only: [:dev, :test], runtime: false},
+      {:bimap, "1.1.0"},
+      {:ex_doc, "0.23.0", only: :dev, runtime: false},
+      {:bunch, "1.3.0"}
     ]
   end
 
