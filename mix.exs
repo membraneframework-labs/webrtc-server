@@ -37,10 +37,7 @@ defmodule Membrane.WebRTC.Server.MixProject do
   def docs do
     [
       main: "readme",
-      extras: [
-        "README.md",
-        "pages/Guide.md"
-      ],
+      extras: ["README.md", "LICENSE", "pages/Guide.md"],
       nest_modules_by_prefix: [
         Membrane.WebRTC.Server
       ],
