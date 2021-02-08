@@ -23,7 +23,7 @@ defmodule Membrane.WebRTC.Server.MixProject do
 
   defp deps do
     [
-      {:uuid, "1.1.8"},
+      {:elixir_uuid, "1.2.1"},
       {:cowboy, "2.8.0"},
       {:jason, "1.2.2"},
       {:dialyxir, "1.0.0", only: [:dev], runtime: false},
