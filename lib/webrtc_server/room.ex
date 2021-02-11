@@ -2,7 +2,7 @@ defmodule Membrane.WebRTC.Server.Room do
   @moduledoc """
   A behaviuor module for WebRTC room that manages peers and mediate in their communication.
 
-  Rooms have to be created explicitly (preferably by `start_supervised/2` function).  
+  Rooms have to be created explicitly (preferably by `start_supervised/2` function).
   """
 
   use GenServer
@@ -12,7 +12,7 @@ defmodule Membrane.WebRTC.Server.Room do
   alias Membrane.WebRTC.Server.Room.{Options, State}
 
   @typedoc """
-  Defines a custom state of the room, passed as argument and returned by callbacks. 
+  Defines a custom state of the room, passed as argument and returned by callbacks.
   """
   @type internal_state :: any()
 
@@ -26,7 +26,7 @@ defmodule Membrane.WebRTC.Server.Room do
 
   Useful for authorizing or performing other checks (e.g. controlling number of peers in room).
 
-  Returning `{:error, error}` will cause peer sending 
+  Returning `{:error, error}` will cause peer sending
   `t:Membrane.WebRTC.Server.Message.error_message/0` to the client and closing WebSocket.
   """
   @callback on_join(auth_data :: AuthData.t(), state :: internal_state()) ::
@@ -41,7 +41,7 @@ defmodule Membrane.WebRTC.Server.Room do
   @doc """
   Callback invoked before forwarding messages either peers.
 
-  This mean this callback will be invoked every time message is forwarded or the room broadcasts 
+  This mean this callback will be invoked every time message is forwarded or the room broadcasts
   messages by itself (e.g. when peer joins the room).
 
   Room will forward_message message returned by this callback, ergo returning `{:ok, state}`
@@ -80,7 +80,7 @@ defmodule Membrane.WebRTC.Server.Room do
   @doc """
   Creates a room under supervision of `Membrane.WebRTC.Server.RoomSupervisor`.
 
-  Calls `start_link/1` underneath. 
+  Calls `start_link/1` underneath.
   """
   @spec start_supervised(options :: Options.t()) ::
           DynamicSupervisor.on_start_child()
@@ -147,6 +147,7 @@ defmodule Membrane.WebRTC.Server.Room do
           data: %{peer_id: auth_data.peer_id},
           event: "joined",
           from: auth_data.peer_id,
+          from_metadata: auth_data.metadata,
           to: "all"
         }
 
