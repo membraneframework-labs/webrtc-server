@@ -1,6 +1,6 @@
 defmodule Membrane.WebRTC.Server.Room do
   @moduledoc """
-  A behaviuor module for WebRTC room that manages peers and mediate in their communication.
+  A behaviour module for WebRTC room that manages peers and mediate in their communication.
 
   Rooms have to be created explicitly (preferably by `start_supervised/2` function).
   """
@@ -92,7 +92,7 @@ defmodule Membrane.WebRTC.Server.Room do
   @doc """
   Forwards the message to the addressees given under `message.to` key.
 
-  Messages ment to be broadcasted should have `message.to` set to "all". Broadcasted message will
+  Messages meant to be broadcasted should have `message.to` set to "all". Broadcasted message will
   be forwarded to all peers, except for sender (given under `message.from`).
   """
   @spec forward_message(room :: pid(), message :: Message.t()) ::
