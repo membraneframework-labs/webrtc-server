@@ -1,17 +1,32 @@
-version: 2.0
-jobs:
-  build:
-    docker:
-      - image: circleci/elixir:latest
-        environment:
-          MIX_ENV: test
+version: 2.1
+orbs:
+  elixir: membraneframework/elixir@1
 
-    working_directory: ~/app
+jobs:
+  test:
+    executor:
+      name: elixir/docker_membrane
+      mix_env: test
 
     steps:
       - checkout
-      - run: mix local.rebar --force
-      - run: mix local.hex --force
-      - run: mix deps.get
-      - run: mix format --check-formatted
-      - run: mix test
+      - run:
+          name: Ensure priv dir exists
+          command: mkdir -p priv
+      - elixir/get_mix_deps
+      - elixir/use_build_cache:
+          env: test
+      - run:
+          name: Ensure native deps are compiled
+          command: mix deps.compile
+      - run:
+          name: Run all tests
+          command: mix test
+workflows:
+  version: 2
+
+  build:
+    jobs:
+      - elixir/build_test
+      - elixir/lint
+      - test
