@@ -1,7 +1,7 @@
 defmodule Membrane.WebRTC.Server.MixProject do
   use Mix.Project
 
-  @version "0.1.2"
+  @version "0.1.3"
   @github_url "https://github.com/membraneframework/webrtc-server"
 
   def project do
@@ -23,14 +23,14 @@ defmodule Membrane.WebRTC.Server.MixProject do
 
   defp deps do
     [
-      {:elixir_uuid, "1.2.1"},
-      {:cowboy, "2.8.0"},
-      {:jason, "1.2.2"},
+      {:elixir_uuid, "~> 1.2"},
+      {:cowboy, "~> 2.9.0"},
+      {:jason, "~> 1.3"},
       {:dialyxir, "1.0.0", only: [:dev], runtime: false},
-      {:credo, "1.5.4", only: [:dev, :test], runtime: false},
-      {:bimap, "1.1.0"},
+      {:credo, "~> 1.6", only: [:dev, :test], runtime: false},
+      {:bimap, "~> 1.2"},
       {:ex_doc, "0.23.0", only: :dev, runtime: false},
-      {:bunch, "1.3.0"}
+      {:bunch, "~> 1.3"}
     ]
   end
 
