@@ -12,11 +12,6 @@ Consists of tw main parts: Peer and Room.
 
 It's a part of the Membrane Framework.
 
-## Example applications
-
-Example applications based on [Plug](https://hexdocs.pm/plug/) can be found 
-[here](https://github.com/membraneframework/membrane-demo/tree/master/webrtc/).
-
 ## Copyright and License
 
 Copyright 2019, [Software Mansion](https://swmansion.com/?utm_source=git&utm_medium=readme&utm_campaign=membrane)
