@@ -4,7 +4,7 @@
 [![Docs](https://img.shields.io/badge/api-docs-yellow.svg?style=flat)](https://hexdocs.pm/membrane_webrtc_server)
 [![CircleCI](https://circleci.com/gh/membraneframework/webrtc-server.svg?style=svg)](https://circleci.com/gh/membraneframework/webrtc_server)
 
-Retired package: Deprecated - Use [Jellyfish](https://github.com/jellyfish-dev/jellyfish) instead.
+**Retired package: Deprecated - Use [Jellyfish](https://github.com/jellyfish-dev/jellyfish) instead.**
 
 Elixir signaling server for WebRTC based on 
 [Cowboy WebSocket](https://ninenines.eu/docs/en/cowboy/2.6/manual/cowboy_websocket/).
